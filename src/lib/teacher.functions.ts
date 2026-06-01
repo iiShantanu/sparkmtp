@@ -158,7 +158,7 @@ export const getMyAiConfig = createServerFn({ method: "GET" })
       .from("ai_configs")
       .select("*")
       .eq("owner_id", userId)
-      .eq("scope", "teacher")
+      .eq("scope", "global")
       .maybeSingle();
     return data;
   });
@@ -169,7 +169,7 @@ export const upsertMyAiConfig = createServerFn({ method: "POST" })
     z
       .object({
         custom_prompt: z.string().max(8000),
-        mode: z.enum(["guided", "free", "strict"]),
+        mode: z.enum(["guided", "direct", "hint_only", "step_by_step"]),
         complexity: z.string().min(1).max(40),
         language: z.string().min(1).max(40),
         tone: z.string().min(1).max(40),
@@ -183,7 +183,7 @@ export const upsertMyAiConfig = createServerFn({ method: "POST" })
       .from("ai_configs")
       .select("id")
       .eq("owner_id", userId)
-      .eq("scope", "teacher")
+      .eq("scope", "global")
       .maybeSingle();
     if (existing.data) {
       const { error } = await supabase
@@ -195,7 +195,7 @@ export const upsertMyAiConfig = createServerFn({ method: "POST" })
       const { error } = await supabase.from("ai_configs").insert({
         ...data,
         owner_id: userId,
-        scope: "teacher",
+        scope: "global",
         updated_by: userId,
       });
       if (error) throw new Error(error.message);
