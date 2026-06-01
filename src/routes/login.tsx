@@ -13,16 +13,43 @@ function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setNotice(null);
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
     setLoading(false);
     if (error) return setError(error.message);
     navigate({ to: "/" });
+  }
+
+  async function resendVerification() {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      setError("Enter your email address first, then resend the verification email.");
+      return;
+    }
+    setError(null);
+    setNotice(null);
+    setResending(true);
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email: trimmedEmail,
+      options: {
+        emailRedirectTo: `${window.location.origin}/login`,
+      },
+    });
+    setResending(false);
+    if (error) return setError(error.message);
+    setNotice("Verification email sent. Open the newest email link, then sign in again.");
   }
 
   return (
@@ -54,6 +81,7 @@ function LoginPage() {
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
           />
           {error && <p className="text-sm text-destructive">{error}</p>}
+          {notice && <p className="text-sm text-muted-foreground">{notice}</p>}
           <button
             type="submit"
             disabled={loading}
@@ -62,6 +90,14 @@ function LoginPage() {
             {loading ? "Signing in…" : "Sign in"}
           </button>
         </form>
+        <button
+          type="button"
+          onClick={resendVerification}
+          disabled={resending}
+          className="mt-3 w-full rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
+        >
+          {resending ? "Sending verification…" : "Resend verification email"}
+        </button>
         <p className="mt-4 text-center text-sm text-muted-foreground">
           New to Spark?{" "}
           <Link to="/signup" className="font-medium text-primary hover:underline">
