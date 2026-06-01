@@ -7,12 +7,12 @@ import { getMe } from "@/lib/auth.functions";
 
 export const Route = createFileRoute("/")({
   beforeLoad: async () => {
+    if (typeof window === "undefined") return;
     const { data } = await supabase.auth.getUser();
     if (!data.user) return;
     try {
       const me = await getMe();
-      const target =
-        me.primaryRole === "parent" ? "/parent" : "/teacher";
+      const target = me.primaryRole === "parent" ? "/parent" : "/teacher";
       throw redirect({ to: target });
     } catch (e) {
       if ((e as any)?.isRedirect) throw e;
