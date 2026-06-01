@@ -1,8 +1,23 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Link } from "@tanstack/react-router";
 import { Sparkles, GraduationCap, Users, Cpu } from "lucide-react";
+import { redirect } from "@tanstack/react-router";
+import { supabase } from "@/integrations/supabase/client";
+import { getMe } from "@/lib/auth.functions";
 
 export const Route = createFileRoute("/")({
+  beforeLoad: async () => {
+    const { data } = await supabase.auth.getUser();
+    if (!data.user) return;
+    try {
+      const me = await getMe();
+      const target =
+        me.primaryRole === "parent" ? "/parent" : "/teacher";
+      throw redirect({ to: target });
+    } catch (e) {
+      if ((e as any)?.isRedirect) throw e;
+    }
+  },
   head: () => ({
     meta: [
       { title: "Spark — Teacher-Guided AI Learning" },
