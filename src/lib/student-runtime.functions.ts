@@ -82,7 +82,35 @@ function buildSystemPrompt(cfg: AiCfg, extras?: { homework_title?: string; instr
   ];
   if (extras?.homework_title) lines.push(`Current homework: ${extras.homework_title}.`);
   if (extras?.instructions) lines.push(`Teacher's instructions: ${extras.instructions}`);
+  lines.push(
+    "IMPORTANT: Begin EVERY reply with one emotion tag in square brackets, chosen from: " +
+      "[emotion:friendly], [emotion:happy], [emotion:thinking], [emotion:love], [emotion:angry], " +
+      "[emotion:forgot], [emotion:error]. Example: '[emotion:friendly] Let's try the first step…'. " +
+      "Pick the tag that best matches the feeling of your reply. Do not mention the tag in your spoken words.",
+  );
   return lines.join("\n");
+}
+
+const EMOTIONS = [
+  "friendly",
+  "happy",
+  "thinking",
+  "love",
+  "angry",
+  "forgot",
+  "error",
+] as const;
+type Emotion = (typeof EMOTIONS)[number];
+
+function extractEmotion(raw: string): { emotion: Emotion; reply: string } {
+  const m = raw.match(/^\s*\[emotion:([a-z]+)\]\s*/i);
+  if (m) {
+    const tag = m[1].toLowerCase() as Emotion;
+    if ((EMOTIONS as readonly string[]).includes(tag)) {
+      return { emotion: tag, reply: raw.slice(m[0].length).trim() };
+    }
+  }
+  return { emotion: "friendly", reply: raw.trim() };
 }
 
 // ---------- public, device-token-authed functions ----------
@@ -224,23 +252,43 @@ export const runHomeworkTurn = createServerFn({ method: "POST" })
     const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${key}`,
+        "Lovable-API-Key": key,
+        "X-Lovable-AIG-SDK": "vercel-ai-sdk",
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: system },
           { role: "user", content: userText },
         ],
       }),
     });
-    if (!aiRes.ok) throw new Error(`AI failed: ${aiRes.status} ${await aiRes.text()}`);
+    if (!aiRes.ok) {
+      const txt = await aiRes.text();
+      console.error("Lovable AI gateway error", aiRes.status, txt);
+      throw new Error(
+        aiRes.status === 402
+          ? "AI credits exhausted. Ask an admin to top up Lovable Cloud."
+          : aiRes.status === 429
+          ? "Spark is a bit busy — try again in a moment."
+          : `AI failed (${aiRes.status})`,
+      );
+    }
     const aiJson = (await aiRes.json()) as any;
-    const reply: string =
+    const raw: string =
       aiJson.choices?.[0]?.message?.content?.toString() ?? "I'm not sure how to help with that yet.";
+    const { emotion, reply } = extractEmotion(raw);
 
-    const audio = await tts(reply, DEFAULT_VOICE);
+    // TTS is best-effort: if it fails or the key is missing, we still return text.
+    let audio: string | null = null;
+    try {
+      if (process.env.ELEVENLABS_API_KEY) {
+        audio = await tts(reply, DEFAULT_VOICE);
+      }
+    } catch (e) {
+      console.warn("TTS failed (non-fatal):", (e as Error).message);
+    }
 
     await supabaseAdmin.from("interaction_logs").insert({
       student_id,
@@ -251,7 +299,7 @@ export const runHomeworkTurn = createServerFn({ method: "POST" })
       transcript: userText,
     });
 
-    return { transcript: userText, reply, audio_base64: audio };
+    return { transcript: userText, reply, emotion, audio_base64: audio };
   });
 
 export const ackNotice = createServerFn({ method: "POST" })
