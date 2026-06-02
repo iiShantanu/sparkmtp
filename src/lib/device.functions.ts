@@ -83,7 +83,7 @@ export const deleteDevice = createServerFn({ method: "POST" })
       .select("id, student_id")
       .eq("id", data.id)
       .maybeSingle();
-    if (!dev) throw new Error("Not found");
+    if (!dev || !dev.student_id) throw new Error("Not found");
     const { data: s } = await supabase
       .from("students")
       .select("id")
