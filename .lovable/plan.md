@@ -1,65 +1,82 @@
+## Goal
 
-## Goals
+Turn the existing app into the thesis prototype:
 
-1. Admin signs in through the same `/login` page but lands directly on `/admin` — no admin link surfaced in teacher dashboard.
-2. Clean, role-aware login entry points (Teacher / Parent / Admin) so each audience sees a focused experience.
-3. Self-registration from the landing page (teacher/parent) creates a **pending** account. Such users cannot enter their dashboard until an admin approves them from the Admin Panel.
-4. Invite-token signups (created by admin) remain auto-approved.
+1. A Raspberry Pi browser opens the **student page** with no login — paired once to one student.
+2. Inside that page the student **talks to the AI** (ElevenLabs) and sees **pop-up reminders** for homework and teacher notices.
+3. Teachers control the AI **per student, per subject, and as a global default**, plus push notices/reminders that the Pi surfaces.
+4. Admin keeps the existing approval + management flow.
 
-## Changes
+## 1. Database changes (one migration)
 
-### 1. Remove admin link from teacher dashboard
-- `src/routes/_authenticated/teacher.tsx`: drop the `if (me.roles.includes("admin"))` block that injects the "Admin panel" nav item. Admins reach `/admin` only via `/login` → auto-redirect.
+Tables:
+- `devices` already exists. Reuse it. Add `claimed boolean default false` and reuse `pairing_code`, `student_id`, `token_hash`, `last_seen_at`. Admin/teacher generates a 6-char code; the Pi posts that code once to bind itself and receives an opaque device token (stored hashed). All later requests use that token.
+- `ai_configs`: already has `scope` (`global` / `student`) and `subject_id`. Add `'subject'` to the `ai_scope` enum so a teacher can save **subject-wide** config (owner = teacher, scope = `subject`, scope_id = subject_id). Keep `global` = teacher default across their subjects, `student` = per-student override.
+- `notices` (new): `id, teacher_id, subject_id?, class_id?, student_id?, title, body, kind('reminder'|'notice'|'homework_due'), starts_at, expires_at`. Targeting: if `student_id` set → that student; else class/subject + class scope. Admin + author can manage. Pi-readable via device-scoped server function (no client RLS for the device).
+- `interaction_logs`: already exists. Used to write transcripts of student↔AI turns from the Pi for teacher review.
 
-### 2. Role-aware login UX
-- Replace `/login` with a small role picker (Teacher / Parent / Admin) at the top of the card. Selection is cosmetic + sets the post-login redirect hint, but actual routing is still driven by the user's real role from `getMe()` (admin → `/admin`, teacher → `/teacher`, parent → `/parent`). This prevents a parent signing in on the "Teacher" tab from landing in the wrong place.
-- After successful sign-in, if the user is **pending approval**, sign them out immediately and show a clear "Awaiting admin approval" message on the login page.
-- Update landing page CTAs: "Sign in as Teacher", "Sign in as Parent", plus a subtle "Admin" link in the footer/nav.
+Resolution order at runtime (server function):  
+`student override (ai_configs.scope='student', scope_id=student)` → `subject override (scope='subject', scope_id=subject, owner=that subject's teacher)` → `teacher global (scope='global', owner=that teacher)` → built-in default.
 
-### 3. Approval workflow (DB + server)
+## 2. Server functions (`src/lib/`)
 
-**Migration (new):**
-- Add `approval_status` enum: `pending | approved | rejected` (default `pending`).
-- Add `profiles.approval_status` column, default `pending`.
-- Backfill: set all existing profiles to `approved`. Admin user stays `approved`.
-- Update `handle_new_user()` trigger:
-  - If signup uses a valid `invite_token` → `approval_status = 'approved'` (admin already vetted).
-  - Otherwise (self-registered teacher/parent from landing page) → `approval_status = 'pending'`.
-- Add helper `public.is_approved(uuid)` (SECURITY DEFINER) returning boolean.
-- Tighten existing RLS so pending users see nothing sensitive:
-  - `students`, `classes`, `homework`, `teacher_subjects`, `parent_students`, `ai_configs` policies: AND in `is_approved(auth.uid())` for non-admin roles.
-  - `profiles_self_read` stays open so the user can read their own pending status.
+- `device.functions.ts`:
+  - `adminCreatePairingCode({ student_id, name })` — admin or teacher with access to that student creates a code.
+  - `devicePair({ code })` — public (no auth) server fn: validates code, marks `claimed`, returns `{ device_token, student_id }`.
+  - All Pi-side fns below accept `device_token` instead of a user session and look up the bound student.
+- `student-runtime.functions.ts` (device-token auth):
+  - `getStudentSession()` → student profile, active subjects, today's homework, active notices.
+  - `getResolvedAiConfig({ subject_id })` → merged AI config (prompt, mode, language, tone, voice).
+  - `getElevenLabsAgentToken({ subject_id })` → server-minted ElevenLabs conversation token; injects the resolved prompt as agent override.
+  - `runHomeworkTurn({ subject_id, homework_id, audio_or_text })` → STT (if audio) → Lovable AI (Gemini, with resolved prompt + homework instructions) → TTS → returns `{ transcript, reply_text, audio_url }`. Writes to `interaction_logs`.
+  - `ackNotice({ notice_id })`, `heartbeat()`.
+- `teacher-ai.functions.ts` extension:
+  - `listMyAiConfigs()` — global + per-subject + per-student rows the teacher owns.
+  - `upsertAiConfig({ scope, scope_id?, subject_id?, ...fields })` — RLS-enforced.
+  - `previewResolvedConfig({ student_id, subject_id })` — what the student will actually get.
+- `teacher-notices.functions.ts`:
+  - `createNotice`, `listMyNotices`, `deleteNotice`, scoped to teacher's subjects/classes.
 
-**Server functions (`src/lib/admin.functions.ts`):**
-- `adminListPendingUsers()` — list profiles where `approval_status = 'pending'`, with role.
-- `adminApproveUser({ user_id })` — set `approval_status = 'approved'`.
-- `adminRejectUser({ user_id })` — set `approval_status = 'rejected'`.
-- `adminListUsers` already exists; extend to include `approval_status`.
+ElevenLabs key handling: store `ELEVENLABS_API_KEY` as a Lovable Cloud secret; all calls happen inside server functions, never in the browser.
 
-**Auth flow (`src/lib/auth.functions.ts`):**
-- Extend `getMe()` to also return `approvalStatus`.
+## 3. UI changes
 
-### 4. UI: Admin approval queue
-- New route `src/routes/_authenticated/admin/approvals.tsx` — table of pending teachers/parents with Approve / Reject buttons. Add nav item "Approvals" (with a badge count) in `admin.tsx`.
-- Update `admin/users.tsx` to show approval status column and allow re-approval/rejection.
+### Pi / student
+- New public route `src/routes/device-pair.tsx` — first-time setup: enter pairing code, store device token in localStorage.
+- New route `src/routes/student.tsx` (device-token gated, no Supabase session):
+  - Header: student name, today's date, current subject selector (limited to subjects teachers have assigned to that student's class).
+  - Big "Talk to Spark" voice button → opens ElevenLabs Agent (WebRTC) using the token from `getElevenLabsAgentToken`. Live transcript + speaking indicator.
+  - Homework drawer: list of today's homework. Tapping one switches to **pipeline mode** (`runHomeworkTurn`) so the teacher's subject/student prompt is enforced strictly.
+  - **Pop-up reminders**: polled every 60s from `getStudentSession()`. Modal with TTS playback of the title/body and "Got it" → `ackNotice`.
 
-### 5. Login-time gate
-- `src/routes/_authenticated.tsx`: after `getMe()` resolves, if `approvalStatus === 'pending' | 'rejected'` and user isn't admin → `supabase.auth.signOut()` and `redirect({ to: '/login', search: { pending: 1 } })`.
-- `/login` reads `?pending=1` and shows "Your account is awaiting admin approval. You'll be able to sign in once approved."
+### Teacher
+- `/_authenticated/teacher/ai` becomes a tabbed page:
+  - **Global default** (existing single-config form).
+  - **Per subject** — one card per subject the teacher teaches.
+  - **Per student** — existing per-student override page, plus a "Preview resolved config" panel.
+- `/_authenticated/teacher/notices` — create/list reminders, target = subject, class, or single student.
+- `/_authenticated/teacher/devices` — generate a pairing code for any student in the teacher's classes; see last-seen.
 
-## Improvement suggestions (optional, flagged for your call)
+### Admin
+- `/_authenticated/admin/devices` — same pairing UI, all students.
+- Keep existing approval / subjects / classes / users / invitations / parents pages unchanged.
 
-- **Email notification on approval**: send a transactional email when admin approves a user. Requires email infra; can be added later.
-- **Self-serve teacher onboarding metadata**: at signup ask which subject(s)/classes they teach — stored on the pending profile so the admin sees context when approving and can pre-fill `teacher_subjects`.
-- **Audit log of approvals**: write to existing `audit_logs` table (`action='approve_user'`) so there's a trail of who approved whom.
-- **Rate-limit / CAPTCHA on public signup** to prevent spam-flooding the approval queue.
-- **Distinct subdomains/paths** (`/admin/login`) are *not* recommended — same `/login` with role tabs keeps things simpler and avoids leaking the admin URL.
+## 4. ElevenLabs integration
 
-## Out of scope (this plan)
-- Email delivery, CAPTCHA, audit log writes (listed above as future).
-- Changing the invitation flow — invites still auto-approve.
+- **Conversational Agent (WebRTC)** for open chat: `@elevenlabs/react`'s `useConversation`. Server fn returns a single-use conversation token + overrides (prompt, voice, first message) from the resolved config.
+- **STT + Lovable AI + TTS pipeline** for homework drills: server fn uses ElevenLabs `scribe_v2` for transcription, Lovable AI Gateway (`google/gemini-3-flash-preview`) for reasoning with the teacher's exact prompt + homework instructions, ElevenLabs TTS (`eleven_turbo_v2_5`) for the reply audio. Returns base64 audio + transcript for the Pi to play.
+- Voice id, language, tone are pulled from `ai_configs` so teachers control them.
 
-## Files touched
-- **Migration**: new `*_approval_workflow.sql` (enum, column, trigger update, RLS tweaks, helper fn).
-- **Edit**: `src/lib/auth.functions.ts`, `src/lib/admin.functions.ts`, `src/routes/_authenticated.tsx`, `src/routes/_authenticated/teacher.tsx`, `src/routes/_authenticated/admin.tsx`, `src/routes/_authenticated/admin/users.tsx`, `src/routes/login.tsx`, `src/routes/index.tsx`, `src/routes/signup.tsx` (default new signups to pending message).
-- **Create**: `src/routes/_authenticated/admin/approvals.tsx`.
+## 5. Out of scope (for this round)
+
+- Real device-OS kiosk setup on the Pi (browser autostart, screen wake) — documented but not coded.
+- Push to phone for parents.
+- Audio recording archival in Storage (we keep text transcripts in `interaction_logs`).
+
+## 6. Files touched
+
+- New: migration, `src/lib/device.functions.ts`, `src/lib/student-runtime.functions.ts`, `src/lib/teacher-notices.functions.ts`, `src/lib/elevenlabs.server.ts`, `src/routes/device-pair.tsx`, `src/routes/student.tsx`, `src/routes/_authenticated/teacher/notices.tsx`, `src/routes/_authenticated/teacher/devices.tsx`, `src/routes/_authenticated/admin/devices.tsx`.
+- Edited: `src/lib/teacher.functions.ts` (subject scope + preview), `src/routes/_authenticated/teacher/ai.tsx` (tabs), `src/routes/_authenticated/teacher.tsx` and `admin.tsx` (nav).
+- Secret: prompt user for `ELEVENLABS_API_KEY` before the ElevenLabs server fns are wired up.
+
+After approval I'll request the `ELEVENLABS_API_KEY` secret, run the migration, and build the changes above.
