@@ -281,8 +281,8 @@ function VoiceModeContent({ token, onBack }: { token: string; onBack: () => void
   const conversation = useConversation({
     onConnect: () => setStatus("Connected"),
     onDisconnect: () => setStatus("Idle"),
-    onError: (e: any) => setStatus(`Error: ${e?.message ?? e}`),
-    onMessage: (m: any) => {
+    onError: (e: unknown) => setStatus(`Error: ${e instanceof Error ? e.message : String(e)}`),
+    onMessage: (m: VoiceMessage) => {
       if (m?.type === "user_transcript")
         setTranscript((t) => [
           ...t,
@@ -432,7 +432,7 @@ function HomeworkMode({
   onBack,
 }: {
   token: string;
-  homework: any;
+  homework: Homework;
   onBack: () => void;
 }) {
   const run = useServerFn(runHomeworkTurn);
@@ -462,7 +462,7 @@ function HomeworkMode({
         data: { device_token: token, homework_id: homework.id, text },
       });
       setTurns((t) => [...t, { role: "spark", text: res.reply }]);
-      if ((res as any).emotion) setEmotion((res as any).emotion as SparkEmotion);
+      if (res.emotion) setEmotion(res.emotion as SparkEmotion);
       else setEmotion("friendly");
       if (res.audio_base64) {
         const audio = new Audio(`data:audio/mpeg;base64,${res.audio_base64}`);
