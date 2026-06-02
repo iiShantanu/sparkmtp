@@ -1,6 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { getMe } from "@/lib/auth.functions";
 import { Sparkles } from "lucide-react";
 
 export const Route = createFileRoute("/login")({
@@ -10,6 +12,7 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const navigate = useNavigate();
+  const fetchMe = useServerFn(getMe);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +31,8 @@ function LoginPage() {
     });
     setLoading(false);
     if (error) return setError(error.message);
-    navigate({ to: "/" });
+    const me = await fetchMe();
+    navigate({ to: me.primaryRole === "parent" ? "/parent" : "/teacher" });
   }
 
   async function resendVerification() {
