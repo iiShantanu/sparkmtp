@@ -12,7 +12,12 @@ export const Route = createFileRoute("/")({
     if (!data.user) return;
     try {
       const me = await getMe();
-      const target = me.primaryRole === "parent" ? "/parent" : "/teacher";
+      const target =
+        me.primaryRole === "admin"
+          ? "/admin"
+          : me.primaryRole === "parent"
+          ? "/parent"
+          : "/teacher";
       throw redirect({ to: target });
     } catch (e) {
       if ((e as any)?.isRedirect) throw e;
