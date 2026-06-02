@@ -459,6 +459,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          approval_status: Database["public"]["Enums"]["approval_status"]
           avatar_url: string | null
           created_at: string
           email: string | null
@@ -468,6 +469,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          approval_status?: Database["public"]["Enums"]["approval_status"]
           avatar_url?: string | null
           created_at?: string
           email?: string | null
@@ -477,6 +479,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          approval_status?: Database["public"]["Enums"]["approval_status"]
           avatar_url?: string | null
           created_at?: string
           email?: string | null
@@ -650,6 +653,7 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: never; Returns: boolean }
+      is_approved: { Args: { _user_id: string }; Returns: boolean }
       is_student_parent: { Args: { _student_id: string }; Returns: boolean }
       is_student_teacher: { Args: { _student_id: string }; Returns: boolean }
       teacher_can_see_class: { Args: { _class_id: string }; Returns: boolean }
@@ -666,6 +670,7 @@ export type Database = {
       ai_mode: "guided" | "step_by_step" | "hint_only" | "direct"
       ai_scope: "global" | "class" | "student"
       app_role: "teacher" | "parent" | "admin" | "student"
+      approval_status: "pending" | "approved" | "rejected"
       difficulty_level: "easy" | "medium" | "hard"
       homework_status: "assigned" | "in_progress" | "completed" | "overdue"
     }
@@ -798,6 +803,7 @@ export const Constants = {
       ai_mode: ["guided", "step_by_step", "hint_only", "direct"],
       ai_scope: ["global", "class", "student"],
       app_role: ["teacher", "parent", "admin", "student"],
+      approval_status: ["pending", "approved", "rejected"],
       difficulty_level: ["easy", "medium", "hard"],
       homework_status: ["assigned", "in_progress", "completed", "overdue"],
     },
