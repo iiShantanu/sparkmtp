@@ -64,8 +64,7 @@ function ResetPasswordPage() {
             placeholder="New password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            disabled={!ready}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
           />
           <input
             type="password"
@@ -73,14 +72,13 @@ function ResetPasswordPage() {
             placeholder="Confirm new password"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
-            disabled={!ready}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
           />
           {error && <p className="text-sm text-destructive">{error}</p>}
           {notice && <p className="text-sm text-muted-foreground">{notice}</p>}
           <button
             type="submit"
-            disabled={loading || !ready}
+            disabled={loading}
             className="w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
             {loading ? "Updating…" : "Update password"}
