@@ -21,5 +21,6 @@ export const getMe = createServerFn({ method: "GET" })
       profile: profile ?? null,
       roles: roleList,
       primaryRole: primary,
+      approvalStatus: (profile as any)?.approval_status ?? "approved",
     };
   });

@@ -16,7 +16,15 @@ export const Route = createFileRoute("/_authenticated")({
       throw redirect({ to: "/login" });
     }
   },
-  loader: ({ context }) => context.queryClient.ensureQueryData(meQueryOptions),
+  loader: async ({ context }) => {
+    const me = await context.queryClient.ensureQueryData(meQueryOptions);
+    if (!me.roles.includes("admin") && me.approvalStatus !== "approved") {
+      await supabase.auth.signOut();
+      context.queryClient.removeQueries({ queryKey: ["me"] });
+      throw redirect({ to: "/login", search: { status: me.approvalStatus } as any });
+    }
+    return me;
+  },
   component: AuthedLayout,
   errorComponent: ({ error }) => (
     <div className="grid min-h-screen place-items-center p-6 text-center">
