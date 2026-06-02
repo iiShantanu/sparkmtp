@@ -239,7 +239,7 @@ export const getStudentAiConfig = createServerFn({ method: "GET" })
     const { supabase, userId } = context;
     const { data: student, error: sErr } = await supabase
       .from("students")
-      .select("id,full_name,class_id,classes!inner(name,section,teacher_id)")
+      .select("id,full_name,class_id,classes(name,section)")
       .eq("id", data.student_id)
       .maybeSingle();
     if (sErr) throw new Error(sErr.message);
