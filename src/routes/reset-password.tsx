@@ -1,6 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { getMe } from "@/lib/auth.functions";
 import { Sparkles } from "lucide-react";
 
 export const Route = createFileRoute("/reset-password")({
@@ -10,6 +12,7 @@ export const Route = createFileRoute("/reset-password")({
 
 function ResetPasswordPage() {
   const navigate = useNavigate();
+  const fetchMe = useServerFn(getMe);
   const [ready, setReady] = useState(false);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -39,7 +42,10 @@ function ResetPasswordPage() {
     setLoading(false);
     if (error) return setError(error.message);
     setNotice("Password updated. Redirecting…");
-    setTimeout(() => navigate({ to: "/" }), 800);
+    const me = await fetchMe();
+    setTimeout(() => {
+      navigate({ to: me.primaryRole === "parent" ? "/parent" : "/teacher" });
+    }, 800);
   }
 
   return (
