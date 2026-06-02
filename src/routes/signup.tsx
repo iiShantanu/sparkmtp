@@ -5,6 +5,9 @@ import { Sparkles, GraduationCap, Users } from "lucide-react";
 
 export const Route = createFileRoute("/signup")({
   head: () => ({ meta: [{ title: "Sign up — Spark" }] }),
+  validateSearch: (search: Record<string, unknown>) => ({
+    invite: typeof search.invite === "string" ? search.invite : undefined,
+  }),
   component: SignupPage,
 });
 
@@ -12,6 +15,7 @@ type Role = "teacher" | "parent";
 
 function SignupPage() {
   const navigate = useNavigate();
+  const { invite } = Route.useSearch();
   const [role, setRole] = useState<Role>("teacher");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -28,7 +32,7 @@ function SignupPage() {
       password,
       options: {
         emailRedirectTo: `${window.location.origin}/`,
-        data: { full_name: fullName, role },
+        data: { full_name: fullName, role, invite_token: invite },
       },
     });
     setLoading(false);
@@ -46,10 +50,17 @@ function SignupPage() {
           Spark
         </div>
         <h1 className="text-xl font-semibold">Create your account</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Teachers and parents can self-register. Students are added by their teacher.
-        </p>
+        {invite ? (
+          <p className="mt-1 text-sm text-muted-foreground">
+            You've been invited to Spark. Your role and access will be set up automatically.
+          </p>
+        ) : (
+          <p className="mt-1 text-sm text-muted-foreground">
+            Teachers and parents can self-register. Students are added by their teacher.
+          </p>
+        )}
 
+        {!invite && (
         <div className="mt-5 grid grid-cols-2 gap-2">
           {[
             { id: "teacher" as const, label: "Teacher", icon: GraduationCap, desc: "Manage classes & AI" },
@@ -75,6 +86,7 @@ function SignupPage() {
             );
           })}
         </div>
+        )}
 
         <form onSubmit={onSubmit} className="mt-5 space-y-3">
           <input

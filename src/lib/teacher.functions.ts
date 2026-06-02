@@ -6,18 +6,34 @@ export const getTeacherOverview = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
+    const { data: assignments } = await supabase
+      .from("teacher_subjects")
+      .select("class_id")
+      .eq("teacher_id", userId);
+    const classIds = Array.from(
+      new Set((assignments ?? []).map((a: any) => a.class_id).filter((x: any) => !!x)),
+    ) as string[];
+    const hasGlobal = (assignments ?? []).some((a: any) => !a.class_id);
+
+    let classesQ = supabase.from("classes").select("id,name,section");
+    let studentsQ = supabase.from("students").select("id,full_name,class_id");
+    if (!hasGlobal) {
+      if (classIds.length === 0) {
+        return { classes: [], homework: [], students: [] };
+      }
+      classesQ = classesQ.in("id", classIds);
+      studentsQ = studentsQ.in("class_id", classIds);
+    }
+
     const [classes, homework, students] = await Promise.all([
-      supabase.from("classes").select("id,name,section").eq("teacher_id", userId),
+      classesQ,
       supabase
         .from("homework")
         .select("id,title,subject,difficulty,due_at,created_at")
         .eq("teacher_id", userId)
         .order("created_at", { ascending: false })
         .limit(10),
-      supabase
-        .from("students")
-        .select("id,full_name,class_id,classes!inner(teacher_id)")
-        .eq("classes.teacher_id", userId),
+      studentsQ,
     ]);
     return {
       classes: classes.data ?? [],
@@ -30,74 +46,59 @@ export const listClasses = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
-    const { data } = await supabase
+    // Classes where the teacher has at least one assignment (subject in this class, or global subject)
+    const { data: assignments } = await supabase
+      .from("teacher_subjects")
+      .select("class_id")
+      .eq("teacher_id", userId);
+    const classIds = Array.from(
+      new Set((assignments ?? []).map((a: any) => a.class_id).filter((x: any) => !!x)),
+    );
+    const hasGlobal = (assignments ?? []).some((a: any) => !a.class_id);
+    if (!hasGlobal && classIds.length === 0) return [];
+    let query = supabase
       .from("classes")
       .select("id,name,section,created_at")
-      .eq("teacher_id", userId)
       .order("created_at", { ascending: false });
+    if (!hasGlobal) query = query.in("id", classIds as string[]);
+    const { data } = await query;
     return data ?? [];
   });
 
-export const createClass = createServerFn({ method: "POST" })
+export const listMySubjects = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i) =>
-    z.object({ name: z.string().min(1).max(80), section: z.string().max(40).optional() }).parse(i),
-  )
-  .handler(async ({ context, data }) => {
+  .handler(async ({ context }) => {
     const { supabase, userId } = context;
-    const { data: row, error } = await supabase
-      .from("classes")
-      .insert({ name: data.name, section: data.section ?? null, teacher_id: userId })
-      .select()
-      .single();
-    if (error) throw new Error(error.message);
-    return row;
+    const { data } = await supabase
+      .from("teacher_subjects")
+      .select("id,subject_id,class_id,subjects(id,name,code),classes(id,name,section)")
+      .eq("teacher_id", userId);
+    return data ?? [];
   });
 
 export const listStudents = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
-    const { data } = await supabase
+    // Resolve classes the teacher can see
+    const { data: assignments } = await supabase
+      .from("teacher_subjects")
+      .select("class_id")
+      .eq("teacher_id", userId);
+    const classIds = Array.from(
+      new Set((assignments ?? []).map((a: any) => a.class_id).filter((x: any) => !!x)),
+    );
+    const hasGlobal = (assignments ?? []).some((a: any) => !a.class_id);
+    let query = supabase
       .from("students")
-      .select("id,full_name,roll_number,class_id,classes!inner(name,section,teacher_id)")
-      .eq("classes.teacher_id", userId)
+      .select("id,full_name,roll_number,class_id,classes(name,section)")
       .order("full_name");
+    if (!hasGlobal) {
+      if (classIds.length === 0) return [];
+      query = query.in("class_id", classIds as string[]);
+    }
+    const { data } = await query;
     return data ?? [];
-  });
-
-export const createStudent = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((i) =>
-    z
-      .object({
-        full_name: z.string().min(1).max(120),
-        class_id: z.string().uuid(),
-        roll_number: z.string().max(40).optional(),
-      })
-      .parse(i),
-  )
-  .handler(async ({ context, data }) => {
-    const { supabase, userId } = context;
-    const { data: teacherClass, error: classError } = await supabase
-      .from("classes")
-      .select("id")
-      .eq("id", data.class_id)
-      .eq("teacher_id", userId)
-      .maybeSingle();
-    if (classError) throw new Error(classError.message);
-    if (!teacherClass) throw new Error("Select one of your own classes before adding a student.");
-
-    const { error } = await supabase
-      .from("students")
-      .insert({
-        full_name: data.full_name,
-        class_id: data.class_id,
-        roll_number: data.roll_number ?? null,
-        created_by: userId,
-      });
-    if (error) throw new Error(error.message);
-    return { ok: true };
   });
 
 export const listHomework = createServerFn({ method: "GET" })
@@ -119,26 +120,38 @@ export const createHomework = createServerFn({ method: "POST" })
       .object({
         title: z.string().min(1).max(160),
         subject: z.string().min(1).max(80),
+        subject_id: z.string().uuid(),
+        class_id: z.string().uuid(),
         difficulty: z.enum(["easy", "medium", "hard"]),
         instructions: z.string().max(4000).optional(),
         voice_enabled: z.boolean().optional(),
         due_at: z.string().optional(),
-        class_id: z.string().uuid().optional(),
       })
       .parse(i),
   )
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
+    // Verify teacher is assigned to this subject in this class (or globally)
+    const { data: ts } = await supabase
+      .from("teacher_subjects")
+      .select("id,class_id")
+      .eq("teacher_id", userId)
+      .eq("subject_id", data.subject_id);
+    const allowed = (ts ?? []).some(
+      (r: any) => r.class_id === null || r.class_id === data.class_id,
+    );
+    if (!allowed) throw new Error("You are not assigned to teach this subject in this class.");
     const { data: row, error } = await supabase
       .from("homework")
       .insert({
         title: data.title,
         subject: data.subject,
+        subject_id: data.subject_id,
         difficulty: data.difficulty,
         instructions: data.instructions ?? null,
         voice_enabled: data.voice_enabled ?? false,
         due_at: data.due_at ?? null,
-        class_id: data.class_id ?? null,
+        class_id: data.class_id,
         teacher_id: userId,
       })
       .select()
@@ -226,7 +239,7 @@ export const getStudentAiConfig = createServerFn({ method: "GET" })
     const { supabase, userId } = context;
     const { data: student, error: sErr } = await supabase
       .from("students")
-      .select("id,full_name,class_id,classes!inner(name,section,teacher_id)")
+      .select("id,full_name,class_id,classes(name,section)")
       .eq("id", data.student_id)
       .maybeSingle();
     if (sErr) throw new Error(sErr.message);
