@@ -6,7 +6,6 @@ import { meQueryOptions } from "@/routes/_authenticated";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   beforeLoad: async ({ context }) => {
-    if (typeof window === "undefined") return;
     const me = await context.queryClient.ensureQueryData(meQueryOptions);
     if (!me.roles.includes("admin")) {
       throw redirect({ to: me.primaryRole === "teacher" ? "/teacher" : "/parent" });
