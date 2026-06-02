@@ -77,14 +77,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
+      { title: "Spark" },
+      { name: "description", content: "Spark is a teacher-guided AI learning ecosystem for classrooms and homes." },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { property: "og:title", content: "Spark" },
+      { property: "og:description", content: "Spark is a teacher-guided AI learning ecosystem for classrooms and homes." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "Spark" },
+      { name: "twitter:description", content: "Spark is a teacher-guided AI learning ecosystem for classrooms and homes." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/907b41ae-7a3f-4bab-9ea5-c580da61e7a3/id-preview-41c5b62b--6f1d38b2-3248-4f98-99b3-14092af7ace6.lovable.app-1780405269923.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/907b41ae-7a3f-4bab-9ea5-c580da61e7a3/id-preview-41c5b62b--6f1d38b2-3248-4f98-99b3-14092af7ace6.lovable.app-1780405269923.png" },
     ],
     links: [
       {
