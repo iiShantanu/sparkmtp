@@ -305,6 +305,12 @@ function VoiceModeContent({ token, onBack }: { token: string; onBack: () => void
       const res = await textTurn({ data: { device_token: token, text } });
       setAgentEmotion((res.emotion as SparkEmotion) ?? "friendly");
       setTranscript((t) => [...t, { role: "spark", text: res.reply }]);
+      if (res.audio_base64) {
+        setAgentEmotion("speaking");
+        const audio = new Audio(`data:audio/mpeg;base64,${res.audio_base64}`);
+        audio.onended = () => setAgentEmotion((res.emotion as SparkEmotion) ?? "friendly");
+        audio.play().catch(() => setAgentEmotion((res.emotion as SparkEmotion) ?? "friendly"));
+      }
     } catch (e) {
       setAgentEmotion("error");
       setWarning((e as Error).message);
