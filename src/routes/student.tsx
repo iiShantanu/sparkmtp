@@ -84,7 +84,10 @@ function StudentTablet() {
     } catch (e) {
       const msg = (e as Error).message;
       setErr(msg);
-      if (/paired|token/i.test(msg)) {
+      // Only clear the stored token if the server explicitly says the device
+      // is no longer paired (e.g. deleted by admin/teacher). Transient errors
+      // must NOT log the device out — tokens never expire on their own.
+      if (/device not paired|missing device token/i.test(msg)) {
         localStorage.removeItem("spark_device_token");
         navigate({ to: "/device-pair" });
       }
