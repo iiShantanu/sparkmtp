@@ -6,18 +6,34 @@ export const getTeacherOverview = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
+    const { data: assignments } = await supabase
+      .from("teacher_subjects")
+      .select("class_id")
+      .eq("teacher_id", userId);
+    const classIds = Array.from(
+      new Set((assignments ?? []).map((a: any) => a.class_id).filter((x: any) => !!x)),
+    ) as string[];
+    const hasGlobal = (assignments ?? []).some((a: any) => !a.class_id);
+
+    let classesQ = supabase.from("classes").select("id,name,section");
+    let studentsQ = supabase.from("students").select("id,full_name,class_id");
+    if (!hasGlobal) {
+      if (classIds.length === 0) {
+        return { classes: [], homework: [], students: [] };
+      }
+      classesQ = classesQ.in("id", classIds);
+      studentsQ = studentsQ.in("class_id", classIds);
+    }
+
     const [classes, homework, students] = await Promise.all([
-      supabase.from("classes").select("id,name,section").eq("teacher_id", userId),
+      classesQ,
       supabase
         .from("homework")
         .select("id,title,subject,difficulty,due_at,created_at")
         .eq("teacher_id", userId)
         .order("created_at", { ascending: false })
         .limit(10),
-      supabase
-        .from("students")
-        .select("id,full_name,class_id,classes!inner(teacher_id)")
-        .eq("classes.teacher_id", userId),
+      studentsQ,
     ]);
     return {
       classes: classes.data ?? [],
