@@ -187,7 +187,8 @@ export const runHomeworkTurn = createServerFn({ method: "POST" })
         audio_base64: z.string().max(8_000_000).optional(),
         audio_mime: z.string().max(60).optional(),
       })
-      .refine((v) => !!v.text || !!v.audio_base64, "Provide text or audio"),
+      .refine((v) => !!v.text || !!v.audio_base64, "Provide text or audio")
+      .parse(i),
   )
   .handler(async ({ data }) => {
     const { student_id } = await requireDevice(data.device_token);
