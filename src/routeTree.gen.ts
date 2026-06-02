@@ -22,6 +22,7 @@ import { Route as AuthenticatedParentIndexRouteImport } from './routes/_authenti
 import { Route as AuthenticatedTeacherStudentsRouteImport } from './routes/_authenticated/teacher/students'
 import { Route as AuthenticatedTeacherHomeworkRouteImport } from './routes/_authenticated/teacher/homework'
 import { Route as AuthenticatedTeacherAiRouteImport } from './routes/_authenticated/teacher/ai'
+import { Route as AuthenticatedTeacherStudentsStudentIdAiRouteImport } from './routes/_authenticated/teacher/students.$studentId.ai'
 
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
@@ -91,6 +92,12 @@ const AuthenticatedTeacherAiRoute = AuthenticatedTeacherAiRouteImport.update({
   path: '/ai',
   getParentRoute: () => AuthenticatedTeacherRoute,
 } as any)
+const AuthenticatedTeacherStudentsStudentIdAiRoute =
+  AuthenticatedTeacherStudentsStudentIdAiRouteImport.update({
+    id: '/$studentId/ai',
+    path: '/$studentId/ai',
+    getParentRoute: () => AuthenticatedTeacherStudentsRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -102,9 +109,10 @@ export interface FileRoutesByFullPath {
   '/teacher': typeof AuthenticatedTeacherRouteWithChildren
   '/teacher/ai': typeof AuthenticatedTeacherAiRoute
   '/teacher/homework': typeof AuthenticatedTeacherHomeworkRoute
-  '/teacher/students': typeof AuthenticatedTeacherStudentsRoute
+  '/teacher/students': typeof AuthenticatedTeacherStudentsRouteWithChildren
   '/parent/': typeof AuthenticatedParentIndexRoute
   '/teacher/': typeof AuthenticatedTeacherIndexRoute
+  '/teacher/students/$studentId/ai': typeof AuthenticatedTeacherStudentsStudentIdAiRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -114,9 +122,10 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/teacher/ai': typeof AuthenticatedTeacherAiRoute
   '/teacher/homework': typeof AuthenticatedTeacherHomeworkRoute
-  '/teacher/students': typeof AuthenticatedTeacherStudentsRoute
+  '/teacher/students': typeof AuthenticatedTeacherStudentsRouteWithChildren
   '/parent': typeof AuthenticatedParentIndexRoute
   '/teacher': typeof AuthenticatedTeacherIndexRoute
+  '/teacher/students/$studentId/ai': typeof AuthenticatedTeacherStudentsStudentIdAiRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -130,9 +139,10 @@ export interface FileRoutesById {
   '/_authenticated/teacher': typeof AuthenticatedTeacherRouteWithChildren
   '/_authenticated/teacher/ai': typeof AuthenticatedTeacherAiRoute
   '/_authenticated/teacher/homework': typeof AuthenticatedTeacherHomeworkRoute
-  '/_authenticated/teacher/students': typeof AuthenticatedTeacherStudentsRoute
+  '/_authenticated/teacher/students': typeof AuthenticatedTeacherStudentsRouteWithChildren
   '/_authenticated/parent/': typeof AuthenticatedParentIndexRoute
   '/_authenticated/teacher/': typeof AuthenticatedTeacherIndexRoute
+  '/_authenticated/teacher/students/$studentId/ai': typeof AuthenticatedTeacherStudentsStudentIdAiRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -149,6 +159,7 @@ export interface FileRouteTypes {
     | '/teacher/students'
     | '/parent/'
     | '/teacher/'
+    | '/teacher/students/$studentId/ai'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -161,6 +172,7 @@ export interface FileRouteTypes {
     | '/teacher/students'
     | '/parent'
     | '/teacher'
+    | '/teacher/students/$studentId/ai'
   id:
     | '__root__'
     | '/'
@@ -176,6 +188,7 @@ export interface FileRouteTypes {
     | '/_authenticated/teacher/students'
     | '/_authenticated/parent/'
     | '/_authenticated/teacher/'
+    | '/_authenticated/teacher/students/$studentId/ai'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -280,6 +293,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTeacherAiRouteImport
       parentRoute: typeof AuthenticatedTeacherRoute
     }
+    '/_authenticated/teacher/students/$studentId/ai': {
+      id: '/_authenticated/teacher/students/$studentId/ai'
+      path: '/$studentId/ai'
+      fullPath: '/teacher/students/$studentId/ai'
+      preLoaderRoute: typeof AuthenticatedTeacherStudentsStudentIdAiRouteImport
+      parentRoute: typeof AuthenticatedTeacherStudentsRoute
+    }
   }
 }
 
@@ -294,17 +314,33 @@ const AuthenticatedParentRouteChildren: AuthenticatedParentRouteChildren = {
 const AuthenticatedParentRouteWithChildren =
   AuthenticatedParentRoute._addFileChildren(AuthenticatedParentRouteChildren)
 
+interface AuthenticatedTeacherStudentsRouteChildren {
+  AuthenticatedTeacherStudentsStudentIdAiRoute: typeof AuthenticatedTeacherStudentsStudentIdAiRoute
+}
+
+const AuthenticatedTeacherStudentsRouteChildren: AuthenticatedTeacherStudentsRouteChildren =
+  {
+    AuthenticatedTeacherStudentsStudentIdAiRoute:
+      AuthenticatedTeacherStudentsStudentIdAiRoute,
+  }
+
+const AuthenticatedTeacherStudentsRouteWithChildren =
+  AuthenticatedTeacherStudentsRoute._addFileChildren(
+    AuthenticatedTeacherStudentsRouteChildren,
+  )
+
 interface AuthenticatedTeacherRouteChildren {
   AuthenticatedTeacherAiRoute: typeof AuthenticatedTeacherAiRoute
   AuthenticatedTeacherHomeworkRoute: typeof AuthenticatedTeacherHomeworkRoute
-  AuthenticatedTeacherStudentsRoute: typeof AuthenticatedTeacherStudentsRoute
+  AuthenticatedTeacherStudentsRoute: typeof AuthenticatedTeacherStudentsRouteWithChildren
   AuthenticatedTeacherIndexRoute: typeof AuthenticatedTeacherIndexRoute
 }
 
 const AuthenticatedTeacherRouteChildren: AuthenticatedTeacherRouteChildren = {
   AuthenticatedTeacherAiRoute: AuthenticatedTeacherAiRoute,
   AuthenticatedTeacherHomeworkRoute: AuthenticatedTeacherHomeworkRoute,
-  AuthenticatedTeacherStudentsRoute: AuthenticatedTeacherStudentsRoute,
+  AuthenticatedTeacherStudentsRoute:
+    AuthenticatedTeacherStudentsRouteWithChildren,
   AuthenticatedTeacherIndexRoute: AuthenticatedTeacherIndexRoute,
 }
 
@@ -336,3 +372,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
