@@ -7,18 +7,21 @@ import { PageHeader } from "@/components/app-shell";
 import {
   createHomework,
   deleteHomework,
-  listClasses,
   listHomework,
+  listMySubjects,
 } from "@/lib/teacher.functions";
 
 const homeworkQO = queryOptions({ queryKey: ["teacher", "homework"], queryFn: () => listHomework() });
-const classesQO = queryOptions({ queryKey: ["teacher", "classes"], queryFn: () => listClasses() });
+const mySubjectsQO = queryOptions({
+  queryKey: ["teacher", "mySubjects"],
+  queryFn: () => listMySubjects(),
+});
 
 export const Route = createFileRoute("/_authenticated/teacher/homework")({
   loader: ({ context }) =>
     Promise.all([
       context.queryClient.ensureQueryData(homeworkQO),
-      context.queryClient.ensureQueryData(classesQO),
+      context.queryClient.ensureQueryData(mySubjectsQO),
     ]),
   component: HomeworkPage,
   errorComponent: ({ error }) => <p className="text-sm text-destructive">{error.message}</p>,
@@ -27,36 +30,73 @@ export const Route = createFileRoute("/_authenticated/teacher/homework")({
 function HomeworkPage() {
   const qc = useQueryClient();
   const { data: homework } = useSuspenseQuery(homeworkQO);
-  const { data: classes } = useSuspenseQuery(classesQO);
+  const { data: mySubjects } = useSuspenseQuery(mySubjectsQO);
   const create = useServerFn(createHomework);
   const del = useServerFn(deleteHomework);
 
   const [title, setTitle] = useState("");
-  const [subject, setSubject] = useState("");
+  const [assignmentId, setAssignmentId] = useState("");
   const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard">("medium");
-  const [classId, setClassId] = useState("");
   const [instructions, setInstructions] = useState("");
   const [dueAt, setDueAt] = useState("");
   const [voice, setVoice] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  // Build a flat list of (subject × class) options from teacher's assignments.
+  // Global (class_id null) assignments expand against the classes the teacher already
+  // sees through any specific assignment — we still require a class for homework.
+  const explicitClasses = Array.from(
+    new Map(
+      (mySubjects as any[])
+        .filter((r) => r.classes)
+        .map((r) => [r.class_id, { id: r.class_id, ...r.classes }]),
+    ).values(),
+  );
+  const options: { key: string; subject_id: string; class_id: string; label: string }[] = [];
+  for (const r of mySubjects as any[]) {
+    if (r.class_id) {
+      options.push({
+        key: `${r.subject_id}:${r.class_id}`,
+        subject_id: r.subject_id,
+        class_id: r.class_id,
+        label: `${r.subjects?.name} — ${r.classes?.name}${r.classes?.section ? " · " + r.classes.section : ""}`,
+      });
+    } else {
+      for (const c of explicitClasses) {
+        options.push({
+          key: `${r.subject_id}:${c.id}`,
+          subject_id: r.subject_id,
+          class_id: c.id,
+          label: `${r.subjects?.name} — ${c.name}${c.section ? " · " + c.section : ""}`,
+        });
+      }
+    }
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setErr(null);
+    const opt = options.find((o) => o.key === assignmentId);
+    if (!opt) {
+      setErr("Select a subject + class");
+      return;
+    }
+    const subjectName =
+      (mySubjects as any[]).find((r) => r.subject_id === opt.subject_id)?.subjects?.name ?? "";
     try {
       await create({
         data: {
           title,
-          subject,
+          subject: subjectName,
+          subject_id: opt.subject_id,
+          class_id: opt.class_id,
           difficulty,
-          class_id: classId || undefined,
           instructions: instructions || undefined,
           due_at: dueAt ? new Date(dueAt).toISOString() : undefined,
           voice_enabled: voice,
         },
       });
       setTitle("");
-      setSubject("");
       setInstructions("");
       setDueAt("");
       qc.invalidateQueries({ queryKey: ["teacher", "homework"] });
@@ -84,13 +124,19 @@ function HomeworkPage() {
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
           />
           <div className="flex gap-2">
-            <input
+            <select
               required
-              placeholder="Subject"
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
+              value={assignmentId}
+              onChange={(e) => setAssignmentId(e.target.value)}
               className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
-            />
+            >
+              <option value="">Subject &amp; class…</option>
+              {options.map((o) => (
+                <option key={o.key} value={o.key}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
             <select
               value={difficulty}
               onChange={(e) => setDifficulty(e.target.value as "easy" | "medium" | "hard")}
@@ -101,18 +147,11 @@ function HomeworkPage() {
               <option value="hard">Hard</option>
             </select>
           </div>
-          <select
-            value={classId}
-            onChange={(e) => setClassId(e.target.value)}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          >
-            <option value="">No class (all students)</option>
-            {classes.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} {c.section ? `· ${c.section}` : ""}
-              </option>
-            ))}
-          </select>
+          {options.length === 0 && (
+            <p className="text-xs text-muted-foreground">
+              You don't have any subject assignments yet. Ask an admin to assign you.
+            </p>
+          )}
           <textarea
             placeholder="Instructions"
             rows={4}
