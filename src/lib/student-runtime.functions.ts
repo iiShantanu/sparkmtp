@@ -242,6 +242,32 @@ export const startVoiceConversation = createServerFn({ method: "POST" })
     return { agentId, token, warning: null };
   });
 
+export const runSparkTextTurn = createServerFn({ method: "POST" })
+  .inputValidator((i) =>
+    z
+      .object({
+        device_token: z.string().min(10),
+        text: z.string().min(1).max(2000),
+        subject_id: z.string().uuid().nullable().optional(),
+      })
+      .parse(i),
+  )
+  .handler(async ({ data }) => {
+    const { student_id } = await requireDevice(data.device_token);
+    const cfg = await resolveConfigFor(student_id, data.subject_id ?? null);
+    const { emotion, reply } = await generateSparkReply(buildSystemPrompt(cfg), data.text);
+
+    await supabaseAdmin.from("interaction_logs").insert({
+      student_id,
+      subject: null,
+      question: data.text,
+      ai_response: reply,
+      transcript: data.text,
+    });
+
+    return { reply, emotion };
+  });
+
 // Homework drill turn: STT (optional) → Lovable AI → TTS
 export const runHomeworkTurn = createServerFn({ method: "POST" })
   .inputValidator((i) =>
