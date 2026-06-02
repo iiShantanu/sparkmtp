@@ -30,6 +30,7 @@ function StudentTablet() {
   const [token, setToken] = useState<string | null>(null);
   const fetchSession = useServerFn(getStudentSession);
   const heartbeat = useServerFn(deviceHeartbeat);
+  const ack = useServerFn(ackNotice);
 
   const [session, setSession] = useState<any | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -144,8 +145,7 @@ function StudentTablet() {
           onClose={async () => {
             dismissedRef.current.add(activeNotice.id);
             try {
-              await (await import("@/lib/student-runtime.functions"))
-                .ackNotice({ data: { device_token: token, notice_id: activeNotice.id } });
+              await ack({ data: { device_token: token, notice_id: activeNotice.id } });
             } catch {}
             setActiveNotice(null);
           }}
