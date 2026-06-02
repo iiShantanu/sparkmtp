@@ -79,18 +79,25 @@ export const createStudent = createServerFn({ method: "POST" })
   )
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
-    const { data: row, error } = await supabase
+    const { data: teacherClass, error: classError } = await supabase
+      .from("classes")
+      .select("id")
+      .eq("id", data.class_id)
+      .eq("teacher_id", userId)
+      .maybeSingle();
+    if (classError) throw new Error(classError.message);
+    if (!teacherClass) throw new Error("Select one of your own classes before adding a student.");
+
+    const { error } = await supabase
       .from("students")
       .insert({
         full_name: data.full_name,
         class_id: data.class_id,
         roll_number: data.roll_number ?? null,
         created_by: userId,
-      })
-      .select()
-      .single();
+      });
     if (error) throw new Error(error.message);
-    return row;
+    return { ok: true };
   });
 
 export const listHomework = createServerFn({ method: "GET" })
