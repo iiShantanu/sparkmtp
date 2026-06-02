@@ -1,6 +1,6 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { LayoutDashboard, Users, BookOpen, GraduationCap, UserCog, Mail, Library, UserCheck } from "lucide-react";
+import { LayoutDashboard, Users, BookOpen, GraduationCap, UserCog, Mail, Library, UserCheck, Tablet } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { meQueryOptions } from "@/routes/_authenticated";
 
@@ -33,6 +33,7 @@ function AdminLayout() {
         { to: "/admin/classes", label: "Classes", icon: <BookOpen className="h-4 w-4" /> },
         { to: "/admin/students", label: "Students", icon: <GraduationCap className="h-4 w-4" /> },
         { to: "/admin/parents", label: "Parents", icon: <Users className="h-4 w-4" /> },
+        { to: "/admin/devices", label: "Devices", icon: <Tablet className="h-4 w-4" /> },
       ]}
     >
       <Outlet />
