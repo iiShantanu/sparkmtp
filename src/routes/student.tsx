@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useConversation } from "@elevenlabs/react";
+import { ConversationProvider, useConversation } from "@elevenlabs/react";
 import { useEffect, useRef, useState } from "react";
 import { Bell, BookOpen, Loader2, Mic, MicOff, Send, Sparkles, X } from "lucide-react";
 import {
@@ -243,6 +243,14 @@ function Home({
 }
 
 function VoiceMode({ token, onBack }: { token: string; onBack: () => void }) {
+  return (
+    <ConversationProvider>
+      <VoiceModeContent token={token} onBack={onBack} />
+    </ConversationProvider>
+  );
+}
+
+function VoiceModeContent({ token, onBack }: { token: string; onBack: () => void }) {
   const start = useServerFn(startVoiceConversation);
   const [status, setStatus] = useState<string>("Idle");
   const [warning, setWarning] = useState<string | null>(null);
