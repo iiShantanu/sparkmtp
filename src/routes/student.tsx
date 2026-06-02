@@ -27,6 +27,29 @@ type Notice = {
   expires_at: string | null;
 };
 
+type Homework = {
+  id: string;
+  title: string;
+  subject: string | null;
+  instructions?: string | null;
+  due_at?: string | null;
+};
+
+type StudentSession = {
+  student?: {
+    full_name?: string | null;
+    classes?: { name?: string | null; section?: string | null } | null;
+  } | null;
+  homework: Homework[];
+  notices: Notice[];
+};
+
+type VoiceMessage = {
+  type?: string;
+  user_transcription_event?: { user_transcript?: string };
+  agent_response_event?: { agent_response?: string };
+};
+
 function StudentTablet() {
   const navigate = useNavigate();
   const [token, setToken] = useState<string | null>(null);
@@ -34,10 +57,10 @@ function StudentTablet() {
   const heartbeat = useServerFn(deviceHeartbeat);
   const ack = useServerFn(ackNotice);
 
-  const [session, setSession] = useState<any | null>(null);
+  const [session, setSession] = useState<StudentSession | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [view, setView] = useState<"home" | "voice" | "homework">("home");
-  const [activeHomework, setActiveHomework] = useState<any | null>(null);
+  const [activeHomework, setActiveHomework] = useState<Homework | null>(null);
   const [activeNotice, setActiveNotice] = useState<Notice | null>(null);
   const [noticesOpen, setNoticesOpen] = useState(false);
   const dismissedRef = useRef<Set<string>>(new Set());
@@ -55,7 +78,7 @@ function StudentTablet() {
   async function refresh(t: string) {
     try {
       const data = await fetchSession({ data: { device_token: t } });
-      setSession(data);
+      setSession(data as StudentSession);
       const fresh = (data.notices ?? []).find((n: Notice) => !dismissedRef.current.has(n.id));
       if (fresh && !activeNotice) setActiveNotice(fresh);
     } catch (e) {
@@ -104,7 +127,9 @@ function StudentTablet() {
     forceRender((x) => x + 1);
     try {
       await ack({ data: { device_token: token!, notice_id: id } });
-    } catch {}
+    } catch (e) {
+      console.warn("Notice acknowledgement failed:", (e as Error).message);
+    }
   }
 
   return (
@@ -181,9 +206,9 @@ function Home({
   onTalk,
   onHomework,
 }: {
-  session: any;
+  session: StudentSession;
   onTalk: () => void;
-  onHomework: (h: any) => void;
+  onHomework: (h: Homework) => void;
 }) {
   return (
     <div className="space-y-6">
@@ -210,7 +235,7 @@ function Home({
           </p>
         ) : (
           <ul className="grid gap-3 sm:grid-cols-2">
-            {session.homework.map((h: any) => (
+            {session.homework.map((h) => (
               <li key={h.id}>
                 <button
                   onClick={() => onHomework(h)}
