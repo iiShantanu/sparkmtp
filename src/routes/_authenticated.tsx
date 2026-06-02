@@ -10,17 +10,14 @@ export const meQueryOptions = queryOptions({
 });
 
 export const Route = createFileRoute("/_authenticated")({
+  ssr: false,
   beforeLoad: async () => {
-    // Supabase session lives in localStorage; during SSR there's no session
-    // to read, so skip the check on the server and let the client gate it.
-    if (typeof window === "undefined") return;
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) {
       throw redirect({ to: "/login" });
     }
   },
   loader: async ({ context }) => {
-    if (typeof window === "undefined") return null as any;
     const me = await context.queryClient.ensureQueryData(meQueryOptions);
     if (!me.roles.includes("admin") && me.approvalStatus !== "approved") {
       await supabase.auth.signOut();
