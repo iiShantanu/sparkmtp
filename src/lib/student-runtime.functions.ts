@@ -250,6 +250,14 @@ export const runSparkTextTurn = createServerFn({ method: "POST" })
     const { student_id } = await requireDevice(data.device_token);
     const cfg = await resolveConfigFor(student_id, data.subject_id ?? null);
     const { emotion, reply } = await generateSparkReply(buildSystemPrompt(cfg), data.text);
+    let audio: string | null = null;
+    try {
+      if (process.env.ELEVENLABS_API_KEY) {
+        audio = await tts(reply, DEFAULT_VOICE);
+      }
+    } catch (e) {
+      console.warn("TTS failed (non-fatal):", (e as Error).message);
+    }
 
     await supabaseAdmin.from("interaction_logs").insert({
       student_id,
@@ -259,7 +267,7 @@ export const runSparkTextTurn = createServerFn({ method: "POST" })
       transcript: data.text,
     });
 
-    return { reply, emotion };
+    return { reply, emotion, audio_base64: audio };
   });
 
 // Homework drill turn: STT (optional) → Lovable AI → TTS
