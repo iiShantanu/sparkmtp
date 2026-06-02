@@ -75,7 +75,10 @@ async function resolveConfigFor(
   return { ...BUILT_IN, source: "default" };
 }
 
-function buildSystemPrompt(cfg: AiCfg, extras?: { homework_title?: string; instructions?: string | null }) {
+function buildSystemPrompt(
+  cfg: AiCfg,
+  extras?: { homework_title?: string; instructions?: string | null },
+) {
   const lines = [
     cfg.custom_prompt,
     `Mode: ${cfg.mode}. Style: ${cfg.teaching_style}. Tone: ${cfg.tone}. Complexity: ${cfg.complexity}. Reply in ${cfg.language}.`,
@@ -91,15 +94,7 @@ function buildSystemPrompt(cfg: AiCfg, extras?: { homework_title?: string; instr
   return lines.join("\n");
 }
 
-const EMOTIONS = [
-  "friendly",
-  "happy",
-  "thinking",
-  "love",
-  "angry",
-  "forgot",
-  "error",
-] as const;
+const EMOTIONS = ["friendly", "happy", "thinking", "love", "angry", "forgot", "error"] as const;
 type Emotion = (typeof EMOTIONS)[number];
 
 function extractEmotion(raw: string): { emotion: Emotion; reply: string } {
@@ -146,8 +141,7 @@ async function generateSparkReply(system: string, userText: string) {
 
   const aiJson = (await aiRes.json()) as any;
   const raw: string =
-    aiJson.choices?.[0]?.message?.content?.toString() ??
-    "I'm not sure how to help with that yet.";
+    aiJson.choices?.[0]?.message?.content?.toString() ?? "I'm not sure how to help with that yet.";
   return extractEmotion(raw);
 }
 

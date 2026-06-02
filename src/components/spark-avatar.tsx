@@ -114,10 +114,7 @@ export function SparkAvatar({
         </div>
       </div>
       {showLabel && (
-        <span
-          className="text-xs font-medium uppercase tracking-wider"
-          style={{ color }}
-        >
+        <span className="text-xs font-medium uppercase tracking-wider" style={{ color }}>
           {LABEL[emotion]}
         </span>
       )}
@@ -139,7 +136,15 @@ function FallbackFace({ emotion }: { emotion: SparkEmotion }) {
     if (emotion === "angry")
       return (
         <g>
-          <line x1={cx - 8} y1={36} x2={cx + 8} y2={42} stroke="#fff" strokeWidth="3" strokeLinecap="round" />
+          <line
+            x1={cx - 8}
+            y1={36}
+            x2={cx + 8}
+            y2={42}
+            stroke="#fff"
+            strokeWidth="3"
+            strokeLinecap="round"
+          />
           <circle cx={cx} cy={48} r={4} fill="#fff" />
         </g>
       );
@@ -149,15 +154,34 @@ function FallbackFace({ emotion }: { emotion: SparkEmotion }) {
   };
 
   const mouth = () => {
-    if (emotion === "speaking")
-      return <ellipse cx={60} cy={78} rx={12} ry={6} fill="#fff" />;
+    if (emotion === "speaking") return <ellipse cx={60} cy={78} rx={12} ry={6} fill="#fff" />;
     if (emotion === "happy" || emotion === "love" || emotion === "friendly")
-      return <path d="M44 72 q16 16 32 0" stroke="#fff" strokeWidth="4" fill="none" strokeLinecap="round" />;
+      return (
+        <path
+          d="M44 72 q16 16 32 0"
+          stroke="#fff"
+          strokeWidth="4"
+          fill="none"
+          strokeLinecap="round"
+        />
+      );
     if (emotion === "angry" || emotion === "error")
-      return <path d="M44 80 q16 -12 32 0" stroke="#fff" strokeWidth="4" fill="none" strokeLinecap="round" />;
+      return (
+        <path
+          d="M44 80 q16 -12 32 0"
+          stroke="#fff"
+          strokeWidth="4"
+          fill="none"
+          strokeLinecap="round"
+        />
+      );
     if (emotion === "thinking" || emotion === "forgot")
-      return <line x1="48" y1="78" x2="72" y2="78" stroke="#fff" strokeWidth="4" strokeLinecap="round" />;
-    return <path d="M48 76 q12 8 24 0" stroke="#fff" strokeWidth="4" fill="none" strokeLinecap="round" />;
+      return (
+        <line x1="48" y1="78" x2="72" y2="78" stroke="#fff" strokeWidth="4" strokeLinecap="round" />
+      );
+    return (
+      <path d="M48 76 q12 8 24 0" stroke="#fff" strokeWidth="4" fill="none" strokeLinecap="round" />
+    );
   };
 
   return (

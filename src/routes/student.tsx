@@ -56,9 +56,7 @@ function StudentTablet() {
     try {
       const data = await fetchSession({ data: { device_token: t } });
       setSession(data);
-      const fresh = (data.notices ?? []).find(
-        (n: Notice) => !dismissedRef.current.has(n.id),
-      );
+      const fresh = (data.notices ?? []).find((n: Notice) => !dismissedRef.current.has(n.id));
       if (fresh && !activeNotice) setActiveNotice(fresh);
     } catch (e) {
       const msg = (e as Error).message;
@@ -150,15 +148,9 @@ function StudentTablet() {
             }}
           />
         )}
-        {view === "voice" && (
-          <VoiceMode token={token} onBack={() => setView("home")} />
-        )}
+        {view === "voice" && <VoiceMode token={token} onBack={() => setView("home")} />}
         {view === "homework" && activeHomework && (
-          <HomeworkMode
-            token={token}
-            homework={activeHomework}
-            onBack={() => setView("home")}
-          />
+          <HomeworkMode token={token} homework={activeHomework} onBack={() => setView("home")} />
         )}
       </main>
 
@@ -267,7 +259,10 @@ function VoiceModeContent({ token, onBack }: { token: string; onBack: () => void
     onError: (e: any) => setStatus(`Error: ${e?.message ?? e}`),
     onMessage: (m: any) => {
       if (m?.type === "user_transcript")
-        setTranscript((t) => [...t, { role: "you", text: m.user_transcription_event?.user_transcript ?? "" }]);
+        setTranscript((t) => [
+          ...t,
+          { role: "you", text: m.user_transcription_event?.user_transcript ?? "" },
+        ]);
       if (m?.type === "agent_response") {
         const raw = m.agent_response_event?.agent_response ?? "";
         const match = raw.match(/^\s*\[emotion:([a-z]+)\]\s*/i);
@@ -322,12 +317,14 @@ function VoiceModeContent({ token, onBack }: { token: string; onBack: () => void
   const liveEmotion: SparkEmotion = textBusy
     ? "thinking"
     : !connected
-    ? "idle"
-    : conversation.isSpeaking
-    ? "speaking"
-    : status.startsWith("Error")
-    ? "error"
-    : (agentEmotion === "friendly" ? "listening" : agentEmotion);
+      ? "idle"
+      : conversation.isSpeaking
+        ? "speaking"
+        : status.startsWith("Error")
+          ? "error"
+          : agentEmotion === "friendly"
+            ? "listening"
+            : agentEmotion;
 
   return (
     <div className="space-y-4">
@@ -337,7 +334,11 @@ function VoiceModeContent({ token, onBack }: { token: string; onBack: () => void
       <div className="grid place-items-center rounded-3xl border border-border bg-card p-10 text-center">
         <SparkAvatar emotion={liveEmotion} size={220} />
         <div className="mt-6 text-xl font-semibold">
-          {connected ? (conversation.isSpeaking ? "Spark is speaking…" : "Listening…") : "Tap to talk"}
+          {connected
+            ? conversation.isSpeaking
+              ? "Spark is speaking…"
+              : "Listening…"
+            : "Tap to talk"}
         </div>
         <div className="mt-1 text-xs text-muted-foreground">{status}</div>
         {warning && <p className="mt-4 max-w-md text-sm text-amber-600">{warning}</p>}
@@ -452,7 +453,9 @@ function HomeworkMode({
         <SparkAvatar emotion={busy ? "thinking" : emotion} size={140} />
       </div>
       <div className="rounded-xl border border-border bg-card p-5">
-        <div className="text-xs uppercase tracking-wide text-muted-foreground">{homework.subject}</div>
+        <div className="text-xs uppercase tracking-wide text-muted-foreground">
+          {homework.subject}
+        </div>
         <h2 className="text-lg font-semibold">{homework.title}</h2>
         {homework.instructions && (
           <p className="mt-2 text-sm text-muted-foreground">{homework.instructions}</p>
@@ -461,7 +464,8 @@ function HomeworkMode({
       <div className="space-y-2 rounded-xl border border-border bg-card p-4 min-h-[180px]">
         {turns.length === 0 && (
           <p className="text-sm text-muted-foreground">
-            Ask Spark anything about this homework. Spark will help you work it out — not just hand you answers.
+            Ask Spark anything about this homework. Spark will help you work it out — not just hand
+            you answers.
           </p>
         )}
         {turns.map((m, i) => (
@@ -508,7 +512,11 @@ function NoticeModal({ notice, onClose }: { notice: Notice; onClose: () => void 
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-primary">
             <Bell className="h-4 w-4" /> {notice.kind.replace("_", " ")}
           </div>
-          <button onClick={onClose} aria-label="Close" className="text-muted-foreground hover:text-foreground">
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="text-muted-foreground hover:text-foreground"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -546,7 +554,11 @@ function NoticesPanel({
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <Bell className="h-5 w-5" /> Notices
           </h2>
-          <button onClick={onClose} aria-label="Close" className="text-muted-foreground hover:text-foreground">
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="text-muted-foreground hover:text-foreground"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
