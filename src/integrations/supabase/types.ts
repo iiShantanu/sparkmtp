@@ -143,6 +143,7 @@ export type Database = {
       }
       devices: {
         Row: {
+          claimed: boolean
           created_at: string
           created_by: string | null
           id: string
@@ -154,6 +155,7 @@ export type Database = {
           token_hash: string | null
         }
         Insert: {
+          claimed?: boolean
           created_at?: string
           created_by?: string | null
           id?: string
@@ -165,6 +167,7 @@ export type Database = {
           token_hash?: string | null
         }
         Update: {
+          claimed?: boolean
           created_at?: string
           created_by?: string | null
           id?: string
@@ -389,6 +392,48 @@ export type Database = {
           payload?: Json
           role?: Database["public"]["Enums"]["app_role"]
           token?: string
+        }
+        Relationships: []
+      }
+      notices: {
+        Row: {
+          body: string | null
+          class_id: string | null
+          created_at: string
+          expires_at: string | null
+          id: string
+          kind: string
+          starts_at: string
+          student_id: string | null
+          subject_id: string | null
+          teacher_id: string
+          title: string
+        }
+        Insert: {
+          body?: string | null
+          class_id?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          kind?: string
+          starts_at?: string
+          student_id?: string | null
+          subject_id?: string | null
+          teacher_id: string
+          title: string
+        }
+        Update: {
+          body?: string | null
+          class_id?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          kind?: string
+          starts_at?: string
+          student_id?: string | null
+          subject_id?: string | null
+          teacher_id?: string
+          title?: string
         }
         Relationships: []
       }
@@ -668,7 +713,7 @@ export type Database = {
     }
     Enums: {
       ai_mode: "guided" | "step_by_step" | "hint_only" | "direct"
-      ai_scope: "global" | "class" | "student"
+      ai_scope: "global" | "class" | "student" | "subject"
       app_role: "teacher" | "parent" | "admin" | "student"
       approval_status: "pending" | "approved" | "rejected"
       difficulty_level: "easy" | "medium" | "hard"
@@ -801,7 +846,7 @@ export const Constants = {
   public: {
     Enums: {
       ai_mode: ["guided", "step_by_step", "hint_only", "direct"],
-      ai_scope: ["global", "class", "student"],
+      ai_scope: ["global", "class", "student", "subject"],
       app_role: ["teacher", "parent", "admin", "student"],
       approval_status: ["pending", "approved", "rejected"],
       difficulty_level: ["easy", "medium", "hard"],

@@ -9,10 +9,12 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as StudentRouteImport } from './routes/student'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
+import { Route as DevicePairRouteImport } from './routes/device-pair'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedTeacherRouteImport } from './routes/_authenticated/teacher'
@@ -22,17 +24,26 @@ import { Route as AuthenticatedTeacherIndexRouteImport } from './routes/_authent
 import { Route as AuthenticatedParentIndexRouteImport } from './routes/_authenticated/parent/index'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedTeacherStudentsRouteImport } from './routes/_authenticated/teacher/students'
+import { Route as AuthenticatedTeacherNoticesRouteImport } from './routes/_authenticated/teacher/notices'
 import { Route as AuthenticatedTeacherHomeworkRouteImport } from './routes/_authenticated/teacher/homework'
+import { Route as AuthenticatedTeacherDevicesRouteImport } from './routes/_authenticated/teacher/devices'
+import { Route as AuthenticatedTeacherAiSubjectsRouteImport } from './routes/_authenticated/teacher/ai-subjects'
 import { Route as AuthenticatedTeacherAiRouteImport } from './routes/_authenticated/teacher/ai'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
 import { Route as AuthenticatedAdminSubjectsRouteImport } from './routes/_authenticated/admin/subjects'
 import { Route as AuthenticatedAdminStudentsRouteImport } from './routes/_authenticated/admin/students'
 import { Route as AuthenticatedAdminParentsRouteImport } from './routes/_authenticated/admin/parents'
 import { Route as AuthenticatedAdminInvitationsRouteImport } from './routes/_authenticated/admin/invitations'
+import { Route as AuthenticatedAdminDevicesRouteImport } from './routes/_authenticated/admin/devices'
 import { Route as AuthenticatedAdminClassesRouteImport } from './routes/_authenticated/admin/classes'
 import { Route as AuthenticatedAdminApprovalsRouteImport } from './routes/_authenticated/admin/approvals'
 import { Route as AuthenticatedTeacherStudentsStudentIdAiRouteImport } from './routes/_authenticated/teacher/students.$studentId.ai'
 
+const StudentRoute = StudentRouteImport.update({
+  id: '/student',
+  path: '/student',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
@@ -51,6 +62,11 @@ const LoginRoute = LoginRouteImport.update({
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
   id: '/forgot-password',
   path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevicePairRoute = DevicePairRouteImport.update({
+  id: '/device-pair',
+  path: '/device-pair',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
@@ -100,10 +116,28 @@ const AuthenticatedTeacherStudentsRoute =
     path: '/students',
     getParentRoute: () => AuthenticatedTeacherRoute,
   } as any)
+const AuthenticatedTeacherNoticesRoute =
+  AuthenticatedTeacherNoticesRouteImport.update({
+    id: '/notices',
+    path: '/notices',
+    getParentRoute: () => AuthenticatedTeacherRoute,
+  } as any)
 const AuthenticatedTeacherHomeworkRoute =
   AuthenticatedTeacherHomeworkRouteImport.update({
     id: '/homework',
     path: '/homework',
+    getParentRoute: () => AuthenticatedTeacherRoute,
+  } as any)
+const AuthenticatedTeacherDevicesRoute =
+  AuthenticatedTeacherDevicesRouteImport.update({
+    id: '/devices',
+    path: '/devices',
+    getParentRoute: () => AuthenticatedTeacherRoute,
+  } as any)
+const AuthenticatedTeacherAiSubjectsRoute =
+  AuthenticatedTeacherAiSubjectsRouteImport.update({
+    id: '/ai-subjects',
+    path: '/ai-subjects',
     getParentRoute: () => AuthenticatedTeacherRoute,
   } as any)
 const AuthenticatedTeacherAiRoute = AuthenticatedTeacherAiRouteImport.update({
@@ -140,6 +174,12 @@ const AuthenticatedAdminInvitationsRoute =
     path: '/invitations',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminDevicesRoute =
+  AuthenticatedAdminDevicesRouteImport.update({
+    id: '/devices',
+    path: '/devices',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminClassesRoute =
   AuthenticatedAdminClassesRouteImport.update({
     id: '/classes',
@@ -161,22 +201,28 @@ const AuthenticatedTeacherStudentsStudentIdAiRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/device-pair': typeof DevicePairRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
+  '/student': typeof StudentRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/parent': typeof AuthenticatedParentRouteWithChildren
   '/teacher': typeof AuthenticatedTeacherRouteWithChildren
   '/admin/approvals': typeof AuthenticatedAdminApprovalsRoute
   '/admin/classes': typeof AuthenticatedAdminClassesRoute
+  '/admin/devices': typeof AuthenticatedAdminDevicesRoute
   '/admin/invitations': typeof AuthenticatedAdminInvitationsRoute
   '/admin/parents': typeof AuthenticatedAdminParentsRoute
   '/admin/students': typeof AuthenticatedAdminStudentsRoute
   '/admin/subjects': typeof AuthenticatedAdminSubjectsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/teacher/ai': typeof AuthenticatedTeacherAiRoute
+  '/teacher/ai-subjects': typeof AuthenticatedTeacherAiSubjectsRoute
+  '/teacher/devices': typeof AuthenticatedTeacherDevicesRoute
   '/teacher/homework': typeof AuthenticatedTeacherHomeworkRoute
+  '/teacher/notices': typeof AuthenticatedTeacherNoticesRoute
   '/teacher/students': typeof AuthenticatedTeacherStudentsRouteWithChildren
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/parent/': typeof AuthenticatedParentIndexRoute
@@ -185,19 +231,25 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/device-pair': typeof DevicePairRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
+  '/student': typeof StudentRoute
   '/admin/approvals': typeof AuthenticatedAdminApprovalsRoute
   '/admin/classes': typeof AuthenticatedAdminClassesRoute
+  '/admin/devices': typeof AuthenticatedAdminDevicesRoute
   '/admin/invitations': typeof AuthenticatedAdminInvitationsRoute
   '/admin/parents': typeof AuthenticatedAdminParentsRoute
   '/admin/students': typeof AuthenticatedAdminStudentsRoute
   '/admin/subjects': typeof AuthenticatedAdminSubjectsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/teacher/ai': typeof AuthenticatedTeacherAiRoute
+  '/teacher/ai-subjects': typeof AuthenticatedTeacherAiSubjectsRoute
+  '/teacher/devices': typeof AuthenticatedTeacherDevicesRoute
   '/teacher/homework': typeof AuthenticatedTeacherHomeworkRoute
+  '/teacher/notices': typeof AuthenticatedTeacherNoticesRoute
   '/teacher/students': typeof AuthenticatedTeacherStudentsRouteWithChildren
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/parent': typeof AuthenticatedParentIndexRoute
@@ -208,22 +260,28 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
+  '/device-pair': typeof DevicePairRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
+  '/student': typeof StudentRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/parent': typeof AuthenticatedParentRouteWithChildren
   '/_authenticated/teacher': typeof AuthenticatedTeacherRouteWithChildren
   '/_authenticated/admin/approvals': typeof AuthenticatedAdminApprovalsRoute
   '/_authenticated/admin/classes': typeof AuthenticatedAdminClassesRoute
+  '/_authenticated/admin/devices': typeof AuthenticatedAdminDevicesRoute
   '/_authenticated/admin/invitations': typeof AuthenticatedAdminInvitationsRoute
   '/_authenticated/admin/parents': typeof AuthenticatedAdminParentsRoute
   '/_authenticated/admin/students': typeof AuthenticatedAdminStudentsRoute
   '/_authenticated/admin/subjects': typeof AuthenticatedAdminSubjectsRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/teacher/ai': typeof AuthenticatedTeacherAiRoute
+  '/_authenticated/teacher/ai-subjects': typeof AuthenticatedTeacherAiSubjectsRoute
+  '/_authenticated/teacher/devices': typeof AuthenticatedTeacherDevicesRoute
   '/_authenticated/teacher/homework': typeof AuthenticatedTeacherHomeworkRoute
+  '/_authenticated/teacher/notices': typeof AuthenticatedTeacherNoticesRoute
   '/_authenticated/teacher/students': typeof AuthenticatedTeacherStudentsRouteWithChildren
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/parent/': typeof AuthenticatedParentIndexRoute
@@ -234,22 +292,28 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/device-pair'
     | '/forgot-password'
     | '/login'
     | '/reset-password'
     | '/signup'
+    | '/student'
     | '/admin'
     | '/parent'
     | '/teacher'
     | '/admin/approvals'
     | '/admin/classes'
+    | '/admin/devices'
     | '/admin/invitations'
     | '/admin/parents'
     | '/admin/students'
     | '/admin/subjects'
     | '/admin/users'
     | '/teacher/ai'
+    | '/teacher/ai-subjects'
+    | '/teacher/devices'
     | '/teacher/homework'
+    | '/teacher/notices'
     | '/teacher/students'
     | '/admin/'
     | '/parent/'
@@ -258,19 +322,25 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/device-pair'
     | '/forgot-password'
     | '/login'
     | '/reset-password'
     | '/signup'
+    | '/student'
     | '/admin/approvals'
     | '/admin/classes'
+    | '/admin/devices'
     | '/admin/invitations'
     | '/admin/parents'
     | '/admin/students'
     | '/admin/subjects'
     | '/admin/users'
     | '/teacher/ai'
+    | '/teacher/ai-subjects'
+    | '/teacher/devices'
     | '/teacher/homework'
+    | '/teacher/notices'
     | '/teacher/students'
     | '/admin'
     | '/parent'
@@ -280,22 +350,28 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_authenticated'
+    | '/device-pair'
     | '/forgot-password'
     | '/login'
     | '/reset-password'
     | '/signup'
+    | '/student'
     | '/_authenticated/admin'
     | '/_authenticated/parent'
     | '/_authenticated/teacher'
     | '/_authenticated/admin/approvals'
     | '/_authenticated/admin/classes'
+    | '/_authenticated/admin/devices'
     | '/_authenticated/admin/invitations'
     | '/_authenticated/admin/parents'
     | '/_authenticated/admin/students'
     | '/_authenticated/admin/subjects'
     | '/_authenticated/admin/users'
     | '/_authenticated/teacher/ai'
+    | '/_authenticated/teacher/ai-subjects'
+    | '/_authenticated/teacher/devices'
     | '/_authenticated/teacher/homework'
+    | '/_authenticated/teacher/notices'
     | '/_authenticated/teacher/students'
     | '/_authenticated/admin/'
     | '/_authenticated/parent/'
@@ -306,14 +382,23 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
+  DevicePairRoute: typeof DevicePairRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SignupRoute: typeof SignupRoute
+  StudentRoute: typeof StudentRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/student': {
+      id: '/student'
+      path: '/student'
+      fullPath: '/student'
+      preLoaderRoute: typeof StudentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/signup': {
       id: '/signup'
       path: '/signup'
@@ -340,6 +425,13 @@ declare module '@tanstack/react-router' {
       path: '/forgot-password'
       fullPath: '/forgot-password'
       preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/device-pair': {
+      id: '/device-pair'
+      path: '/device-pair'
+      fullPath: '/device-pair'
+      preLoaderRoute: typeof DevicePairRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated': {
@@ -405,11 +497,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTeacherStudentsRouteImport
       parentRoute: typeof AuthenticatedTeacherRoute
     }
+    '/_authenticated/teacher/notices': {
+      id: '/_authenticated/teacher/notices'
+      path: '/notices'
+      fullPath: '/teacher/notices'
+      preLoaderRoute: typeof AuthenticatedTeacherNoticesRouteImport
+      parentRoute: typeof AuthenticatedTeacherRoute
+    }
     '/_authenticated/teacher/homework': {
       id: '/_authenticated/teacher/homework'
       path: '/homework'
       fullPath: '/teacher/homework'
       preLoaderRoute: typeof AuthenticatedTeacherHomeworkRouteImport
+      parentRoute: typeof AuthenticatedTeacherRoute
+    }
+    '/_authenticated/teacher/devices': {
+      id: '/_authenticated/teacher/devices'
+      path: '/devices'
+      fullPath: '/teacher/devices'
+      preLoaderRoute: typeof AuthenticatedTeacherDevicesRouteImport
+      parentRoute: typeof AuthenticatedTeacherRoute
+    }
+    '/_authenticated/teacher/ai-subjects': {
+      id: '/_authenticated/teacher/ai-subjects'
+      path: '/ai-subjects'
+      fullPath: '/teacher/ai-subjects'
+      preLoaderRoute: typeof AuthenticatedTeacherAiSubjectsRouteImport
       parentRoute: typeof AuthenticatedTeacherRoute
     }
     '/_authenticated/teacher/ai': {
@@ -454,6 +567,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminInvitationsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/devices': {
+      id: '/_authenticated/admin/devices'
+      path: '/devices'
+      fullPath: '/admin/devices'
+      preLoaderRoute: typeof AuthenticatedAdminDevicesRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/classes': {
       id: '/_authenticated/admin/classes'
       path: '/classes'
@@ -481,6 +601,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminApprovalsRoute: typeof AuthenticatedAdminApprovalsRoute
   AuthenticatedAdminClassesRoute: typeof AuthenticatedAdminClassesRoute
+  AuthenticatedAdminDevicesRoute: typeof AuthenticatedAdminDevicesRoute
   AuthenticatedAdminInvitationsRoute: typeof AuthenticatedAdminInvitationsRoute
   AuthenticatedAdminParentsRoute: typeof AuthenticatedAdminParentsRoute
   AuthenticatedAdminStudentsRoute: typeof AuthenticatedAdminStudentsRoute
@@ -492,6 +613,7 @@ interface AuthenticatedAdminRouteChildren {
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminApprovalsRoute: AuthenticatedAdminApprovalsRoute,
   AuthenticatedAdminClassesRoute: AuthenticatedAdminClassesRoute,
+  AuthenticatedAdminDevicesRoute: AuthenticatedAdminDevicesRoute,
   AuthenticatedAdminInvitationsRoute: AuthenticatedAdminInvitationsRoute,
   AuthenticatedAdminParentsRoute: AuthenticatedAdminParentsRoute,
   AuthenticatedAdminStudentsRoute: AuthenticatedAdminStudentsRoute,
@@ -531,14 +653,20 @@ const AuthenticatedTeacherStudentsRouteWithChildren =
 
 interface AuthenticatedTeacherRouteChildren {
   AuthenticatedTeacherAiRoute: typeof AuthenticatedTeacherAiRoute
+  AuthenticatedTeacherAiSubjectsRoute: typeof AuthenticatedTeacherAiSubjectsRoute
+  AuthenticatedTeacherDevicesRoute: typeof AuthenticatedTeacherDevicesRoute
   AuthenticatedTeacherHomeworkRoute: typeof AuthenticatedTeacherHomeworkRoute
+  AuthenticatedTeacherNoticesRoute: typeof AuthenticatedTeacherNoticesRoute
   AuthenticatedTeacherStudentsRoute: typeof AuthenticatedTeacherStudentsRouteWithChildren
   AuthenticatedTeacherIndexRoute: typeof AuthenticatedTeacherIndexRoute
 }
 
 const AuthenticatedTeacherRouteChildren: AuthenticatedTeacherRouteChildren = {
   AuthenticatedTeacherAiRoute: AuthenticatedTeacherAiRoute,
+  AuthenticatedTeacherAiSubjectsRoute: AuthenticatedTeacherAiSubjectsRoute,
+  AuthenticatedTeacherDevicesRoute: AuthenticatedTeacherDevicesRoute,
   AuthenticatedTeacherHomeworkRoute: AuthenticatedTeacherHomeworkRoute,
+  AuthenticatedTeacherNoticesRoute: AuthenticatedTeacherNoticesRoute,
   AuthenticatedTeacherStudentsRoute:
     AuthenticatedTeacherStudentsRouteWithChildren,
   AuthenticatedTeacherIndexRoute: AuthenticatedTeacherIndexRoute,
@@ -566,10 +694,12 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
+  DevicePairRoute: DevicePairRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SignupRoute: SignupRoute,
+  StudentRoute: StudentRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
