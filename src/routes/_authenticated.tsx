@@ -32,8 +32,10 @@ function AuthedLayout() {
   const navigate = useNavigate();
   useSuspenseQuery(meQueryOptions);
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
-      if (!session) navigate({ to: "/login" });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if ((event === "SIGNED_OUT" || event === "USER_DELETED") && !session) {
+        navigate({ to: "/login" });
+      }
     });
     return () => subscription.unsubscribe();
   }, [navigate]);
