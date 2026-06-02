@@ -75,7 +75,10 @@ async function resolveConfigFor(
   return { ...BUILT_IN, source: "default" };
 }
 
-function buildSystemPrompt(cfg: AiCfg, extras?: { homework_title?: string; instructions?: string | null }) {
+function buildSystemPrompt(
+  cfg: AiCfg,
+  extras?: { homework_title?: string; instructions?: string | null },
+) {
   const lines = [
     cfg.custom_prompt,
     `Mode: ${cfg.mode}. Style: ${cfg.teaching_style}. Tone: ${cfg.tone}. Complexity: ${cfg.complexity}. Reply in ${cfg.language}.`,
@@ -91,15 +94,7 @@ function buildSystemPrompt(cfg: AiCfg, extras?: { homework_title?: string; instr
   return lines.join("\n");
 }
 
-const EMOTIONS = [
-  "friendly",
-  "happy",
-  "thinking",
-  "love",
-  "angry",
-  "forgot",
-  "error",
-] as const;
+const EMOTIONS = ["friendly", "happy", "thinking", "love", "angry", "forgot", "error"] as const;
 type Emotion = (typeof EMOTIONS)[number];
 
 function extractEmotion(raw: string): { emotion: Emotion; reply: string } {
@@ -111,6 +106,43 @@ function extractEmotion(raw: string): { emotion: Emotion; reply: string } {
     }
   }
   return { emotion: "friendly", reply: raw.trim() };
+}
+
+async function generateSparkReply(system: string, userText: string) {
+  const key = process.env.LOVABLE_API_KEY;
+  if (!key) throw new Error("LOVABLE_API_KEY not configured");
+
+  const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Lovable-API-Key": key,
+      "X-Lovable-AIG-SDK": "vercel-ai-sdk",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "google/gemini-3-flash-preview",
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: userText },
+      ],
+    }),
+  });
+  if (!aiRes.ok) {
+    const txt = await aiRes.text();
+    console.error("Lovable AI gateway error", aiRes.status, txt);
+    throw new Error(
+      aiRes.status === 402
+        ? "AI credits exhausted. Ask an admin to top up Lovable Cloud."
+        : aiRes.status === 429
+          ? "Spark is a bit busy — try again in a moment."
+          : `AI failed (${aiRes.status})`,
+    );
+  }
+
+  const aiJson = (await aiRes.json()) as any;
+  const raw: string =
+    aiJson.choices?.[0]?.message?.content?.toString() ?? "I'm not sure how to help with that yet.";
+  return extractEmotion(raw);
 }
 
 // ---------- public, device-token-authed functions ----------
@@ -204,6 +236,40 @@ export const startVoiceConversation = createServerFn({ method: "POST" })
     return { agentId, token, warning: null };
   });
 
+export const runSparkTextTurn = createServerFn({ method: "POST" })
+  .inputValidator((i) =>
+    z
+      .object({
+        device_token: z.string().min(10),
+        text: z.string().min(1).max(2000),
+        subject_id: z.string().uuid().nullable().optional(),
+      })
+      .parse(i),
+  )
+  .handler(async ({ data }) => {
+    const { student_id } = await requireDevice(data.device_token);
+    const cfg = await resolveConfigFor(student_id, data.subject_id ?? null);
+    const { emotion, reply } = await generateSparkReply(buildSystemPrompt(cfg), data.text);
+    let audio: string | null = null;
+    try {
+      if (process.env.ELEVENLABS_API_KEY) {
+        audio = await tts(reply, DEFAULT_VOICE);
+      }
+    } catch (e) {
+      console.warn("TTS failed (non-fatal):", (e as Error).message);
+    }
+
+    await supabaseAdmin.from("interaction_logs").insert({
+      student_id,
+      subject: null,
+      question: data.text,
+      ai_response: reply,
+      transcript: data.text,
+    });
+
+    return { reply, emotion, audio_base64: audio };
+  });
+
 // Homework drill turn: STT (optional) → Lovable AI → TTS
 export const runHomeworkTurn = createServerFn({ method: "POST" })
   .inputValidator((i) =>
@@ -247,38 +313,7 @@ export const runHomeworkTurn = createServerFn({ method: "POST" })
       instructions: (hw as any).instructions,
     });
 
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("LOVABLE_API_KEY not configured");
-    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Lovable-API-Key": key,
-        "X-Lovable-AIG-SDK": "vercel-ai-sdk",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: userText },
-        ],
-      }),
-    });
-    if (!aiRes.ok) {
-      const txt = await aiRes.text();
-      console.error("Lovable AI gateway error", aiRes.status, txt);
-      throw new Error(
-        aiRes.status === 402
-          ? "AI credits exhausted. Ask an admin to top up Lovable Cloud."
-          : aiRes.status === 429
-          ? "Spark is a bit busy — try again in a moment."
-          : `AI failed (${aiRes.status})`,
-      );
-    }
-    const aiJson = (await aiRes.json()) as any;
-    const raw: string =
-      aiJson.choices?.[0]?.message?.content?.toString() ?? "I'm not sure how to help with that yet.";
-    const { emotion, reply } = extractEmotion(raw);
+    const { emotion, reply } = await generateSparkReply(system, userText);
 
     // TTS is best-effort: if it fails or the key is missing, we still return text.
     let audio: string | null = null;

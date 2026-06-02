@@ -1,11 +1,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useConversation } from "@elevenlabs/react";
+import { ConversationProvider, useConversation } from "@elevenlabs/react";
 import { useEffect, useRef, useState } from "react";
 import { Bell, BookOpen, Loader2, Mic, MicOff, Send, Sparkles, X } from "lucide-react";
 import {
   getStudentSession,
   runHomeworkTurn,
+  runSparkTextTurn,
   startVoiceConversation,
   ackNotice,
 } from "@/lib/student-runtime.functions";
@@ -26,6 +27,29 @@ type Notice = {
   expires_at: string | null;
 };
 
+type Homework = {
+  id: string;
+  title: string;
+  subject: string | null;
+  instructions?: string | null;
+  due_at?: string | null;
+};
+
+type StudentSession = {
+  student?: {
+    full_name?: string | null;
+    classes?: { name?: string | null; section?: string | null } | null;
+  } | null;
+  homework: Homework[];
+  notices: Notice[];
+};
+
+type VoiceMessage = {
+  type?: string;
+  user_transcription_event?: { user_transcript?: string };
+  agent_response_event?: { agent_response?: string };
+};
+
 function StudentTablet() {
   const navigate = useNavigate();
   const [token, setToken] = useState<string | null>(null);
@@ -33,10 +57,10 @@ function StudentTablet() {
   const heartbeat = useServerFn(deviceHeartbeat);
   const ack = useServerFn(ackNotice);
 
-  const [session, setSession] = useState<any | null>(null);
+  const [session, setSession] = useState<StudentSession | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [view, setView] = useState<"home" | "voice" | "homework">("home");
-  const [activeHomework, setActiveHomework] = useState<any | null>(null);
+  const [activeHomework, setActiveHomework] = useState<Homework | null>(null);
   const [activeNotice, setActiveNotice] = useState<Notice | null>(null);
   const [noticesOpen, setNoticesOpen] = useState(false);
   const dismissedRef = useRef<Set<string>>(new Set());
@@ -54,10 +78,8 @@ function StudentTablet() {
   async function refresh(t: string) {
     try {
       const data = await fetchSession({ data: { device_token: t } });
-      setSession(data);
-      const fresh = (data.notices ?? []).find(
-        (n: Notice) => !dismissedRef.current.has(n.id),
-      );
+      setSession(data as StudentSession);
+      const fresh = (data.notices ?? []).find((n: Notice) => !dismissedRef.current.has(n.id));
       if (fresh && !activeNotice) setActiveNotice(fresh);
     } catch (e) {
       const msg = (e as Error).message;
@@ -105,7 +127,9 @@ function StudentTablet() {
     forceRender((x) => x + 1);
     try {
       await ack({ data: { device_token: token!, notice_id: id } });
-    } catch {}
+    } catch (e) {
+      console.warn("Notice acknowledgement failed:", (e as Error).message);
+    }
   }
 
   return (
@@ -149,15 +173,9 @@ function StudentTablet() {
             }}
           />
         )}
-        {view === "voice" && (
-          <VoiceMode token={token} onBack={() => setView("home")} />
-        )}
+        {view === "voice" && <VoiceMode token={token} onBack={() => setView("home")} />}
         {view === "homework" && activeHomework && (
-          <HomeworkMode
-            token={token}
-            homework={activeHomework}
-            onBack={() => setView("home")}
-          />
+          <HomeworkMode token={token} homework={activeHomework} onBack={() => setView("home")} />
         )}
       </main>
 
@@ -188,9 +206,9 @@ function Home({
   onTalk,
   onHomework,
 }: {
-  session: any;
+  session: StudentSession;
   onTalk: () => void;
-  onHomework: (h: any) => void;
+  onHomework: (h: Homework) => void;
 }) {
   return (
     <div className="space-y-6">
@@ -217,7 +235,7 @@ function Home({
           </p>
         ) : (
           <ul className="grid gap-3 sm:grid-cols-2">
-            {session.homework.map((h: any) => (
+            {session.homework.map((h) => (
               <li key={h.id}>
                 <button
                   onClick={() => onHomework(h)}
@@ -243,19 +261,34 @@ function Home({
 }
 
 function VoiceMode({ token, onBack }: { token: string; onBack: () => void }) {
+  return (
+    <ConversationProvider>
+      <VoiceModeContent token={token} onBack={onBack} />
+    </ConversationProvider>
+  );
+}
+
+function VoiceModeContent({ token, onBack }: { token: string; onBack: () => void }) {
   const start = useServerFn(startVoiceConversation);
+  const textTurn = useServerFn(runSparkTextTurn);
   const [status, setStatus] = useState<string>("Idle");
   const [warning, setWarning] = useState<string | null>(null);
+  const [textInput, setTextInput] = useState("");
+  const [textBusy, setTextBusy] = useState(false);
   const [transcript, setTranscript] = useState<Array<{ role: string; text: string }>>([]);
   const [agentEmotion, setAgentEmotion] = useState<SparkEmotion>("friendly");
 
   const conversation = useConversation({
     onConnect: () => setStatus("Connected"),
     onDisconnect: () => setStatus("Idle"),
-    onError: (e: any) => setStatus(`Error: ${e?.message ?? e}`),
-    onMessage: (m: any) => {
+    onError: (e: unknown) => setStatus(`Error: ${e instanceof Error ? e.message : String(e)}`),
+    onMessage: (message: unknown) => {
+      const m = message as VoiceMessage;
       if (m?.type === "user_transcript")
-        setTranscript((t) => [...t, { role: "you", text: m.user_transcription_event?.user_transcript ?? "" }]);
+        setTranscript((t) => [
+          ...t,
+          { role: "you", text: m.user_transcription_event?.user_transcript ?? "" },
+        ]);
       if (m?.type === "agent_response") {
         const raw = m.agent_response_event?.agent_response ?? "";
         const match = raw.match(/^\s*\[emotion:([a-z]+)\]\s*/i);
@@ -286,14 +319,44 @@ function VoiceMode({ token, onBack }: { token: string; onBack: () => void }) {
     }
   }
 
+  async function sendTextTurn() {
+    const text = textInput.trim();
+    if (!text || textBusy) return;
+    setTextInput("");
+    setTextBusy(true);
+    setWarning(null);
+    setAgentEmotion("thinking");
+    setTranscript((t) => [...t, { role: "you", text }]);
+    try {
+      const res = await textTurn({ data: { device_token: token, text } });
+      setAgentEmotion((res.emotion as SparkEmotion) ?? "friendly");
+      setTranscript((t) => [...t, { role: "spark", text: res.reply }]);
+      if (res.audio_base64) {
+        setAgentEmotion("speaking");
+        const audio = new Audio(`data:audio/mpeg;base64,${res.audio_base64}`);
+        audio.onended = () => setAgentEmotion((res.emotion as SparkEmotion) ?? "friendly");
+        audio.play().catch(() => setAgentEmotion((res.emotion as SparkEmotion) ?? "friendly"));
+      }
+    } catch (e) {
+      setAgentEmotion("error");
+      setWarning((e as Error).message);
+    } finally {
+      setTextBusy(false);
+    }
+  }
+
   const connected = conversation.status === "connected";
-  const liveEmotion: SparkEmotion = !connected
-    ? "idle"
-    : conversation.isSpeaking
-    ? "speaking"
-    : status.startsWith("Error")
-    ? "error"
-    : (agentEmotion === "friendly" ? "listening" : agentEmotion);
+  const liveEmotion: SparkEmotion = textBusy
+    ? "thinking"
+    : !connected
+      ? "idle"
+      : conversation.isSpeaking
+        ? "speaking"
+        : status.startsWith("Error")
+          ? "error"
+          : agentEmotion === "friendly"
+            ? "listening"
+            : agentEmotion;
 
   return (
     <div className="space-y-4">
@@ -303,7 +366,11 @@ function VoiceMode({ token, onBack }: { token: string; onBack: () => void }) {
       <div className="grid place-items-center rounded-3xl border border-border bg-card p-10 text-center">
         <SparkAvatar emotion={liveEmotion} size={220} />
         <div className="mt-6 text-xl font-semibold">
-          {connected ? (conversation.isSpeaking ? "Spark is speaking…" : "Listening…") : "Tap to talk"}
+          {connected
+            ? conversation.isSpeaking
+              ? "Spark is speaking…"
+              : "Listening…"
+            : "Tap to talk"}
         </div>
         <div className="mt-1 text-xs text-muted-foreground">{status}</div>
         {warning && <p className="mt-4 max-w-md text-sm text-amber-600">{warning}</p>}
@@ -334,6 +401,28 @@ function VoiceMode({ token, onBack }: { token: string; onBack: () => void }) {
           ))}
         </div>
       )}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          sendTextTurn();
+        }}
+        className="flex gap-2 rounded-xl border border-border bg-card p-3"
+      >
+        <input
+          value={textInput}
+          onChange={(e) => setTextInput(e.target.value)}
+          placeholder="Type to Spark if voice is unavailable…"
+          className="flex-1 rounded-md border border-input bg-background px-3 py-2.5 text-sm"
+        />
+        <button
+          type="submit"
+          disabled={textBusy || !textInput.trim()}
+          className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+        >
+          {textBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          Send
+        </button>
+      </form>
     </div>
   );
 }
@@ -344,7 +433,7 @@ function HomeworkMode({
   onBack,
 }: {
   token: string;
-  homework: any;
+  homework: Homework;
   onBack: () => void;
 }) {
   const run = useServerFn(runHomeworkTurn);
@@ -374,7 +463,7 @@ function HomeworkMode({
         data: { device_token: token, homework_id: homework.id, text },
       });
       setTurns((t) => [...t, { role: "spark", text: res.reply }]);
-      if ((res as any).emotion) setEmotion((res as any).emotion as SparkEmotion);
+      if (res.emotion) setEmotion(res.emotion as SparkEmotion);
       else setEmotion("friendly");
       if (res.audio_base64) {
         const audio = new Audio(`data:audio/mpeg;base64,${res.audio_base64}`);
@@ -396,7 +485,9 @@ function HomeworkMode({
         <SparkAvatar emotion={busy ? "thinking" : emotion} size={140} />
       </div>
       <div className="rounded-xl border border-border bg-card p-5">
-        <div className="text-xs uppercase tracking-wide text-muted-foreground">{homework.subject}</div>
+        <div className="text-xs uppercase tracking-wide text-muted-foreground">
+          {homework.subject}
+        </div>
         <h2 className="text-lg font-semibold">{homework.title}</h2>
         {homework.instructions && (
           <p className="mt-2 text-sm text-muted-foreground">{homework.instructions}</p>
@@ -405,7 +496,8 @@ function HomeworkMode({
       <div className="space-y-2 rounded-xl border border-border bg-card p-4 min-h-[180px]">
         {turns.length === 0 && (
           <p className="text-sm text-muted-foreground">
-            Ask Spark anything about this homework. Spark will help you work it out — not just hand you answers.
+            Ask Spark anything about this homework. Spark will help you work it out — not just hand
+            you answers.
           </p>
         )}
         {turns.map((m, i) => (
@@ -452,7 +544,11 @@ function NoticeModal({ notice, onClose }: { notice: Notice; onClose: () => void 
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-primary">
             <Bell className="h-4 w-4" /> {notice.kind.replace("_", " ")}
           </div>
-          <button onClick={onClose} aria-label="Close" className="text-muted-foreground hover:text-foreground">
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="text-muted-foreground hover:text-foreground"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -490,7 +586,11 @@ function NoticesPanel({
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <Bell className="h-5 w-5" /> Notices
           </h2>
-          <button onClick={onClose} aria-label="Close" className="text-muted-foreground hover:text-foreground">
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="text-muted-foreground hover:text-foreground"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
