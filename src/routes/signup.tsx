@@ -21,6 +21,7 @@ function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
@@ -37,7 +38,11 @@ function SignupPage() {
     });
     setLoading(false);
     if (error) return setError(error.message);
-    navigate({ to: "/login" });
+    if (invite) {
+      navigate({ to: "/login" });
+    } else {
+      setSubmitted(true);
+    }
   }
 
   return (
@@ -56,8 +61,14 @@ function SignupPage() {
           </p>
         ) : (
           <p className="mt-1 text-sm text-muted-foreground">
-            Teachers and parents can self-register. Students are added by their teacher.
+            Teachers and parents can self-register. Your account will be reviewed by an admin before you can sign in.
           </p>
+        )}
+
+        {submitted && (
+          <div className="mt-4 rounded-md border border-border bg-muted p-3 text-sm">
+            Account created. An admin will review your request — you'll be able to sign in once approved.
+          </div>
         )}
 
         {!invite && (

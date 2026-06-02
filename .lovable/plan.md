@@ -1,92 +1,65 @@
-## Goal
 
-Add a super admin panel that manages all users, classes, and global subjects. Teachers get scoped access (only their assigned subjects, classes, and students). Admin manages parent accounts and links them to students.
+## Goals
 
-## Data model changes
+1. Admin signs in through the same `/login` page but lands directly on `/admin` — no admin link surfaced in teacher dashboard.
+2. Clean, role-aware login entry points (Teacher / Parent / Admin) so each audience sees a focused experience.
+3. Self-registration from the landing page (teacher/parent) creates a **pending** account. Such users cannot enter their dashboard until an admin approves them from the Admin Panel.
+4. Invite-token signups (created by admin) remain auto-approved.
 
-New tables:
-- `subjects` — global catalog: `id`, `name`, `code` (admin-managed)
-- `teacher_subjects` — assignment: `teacher_id`, `subject_id`, optional `class_id`
-- `invitations` — pending admin/teacher/parent invites: `email`, `role`, `token`, `expires_at`, `accepted_at`, `created_by`
+## Changes
 
-Schema additions:
-- `homework.subject_id` (FK → subjects) replacing free-text `subject` over time; keep `subject` column for back-compat
-- `classes` stays admin-owned (teacher cannot create)
-- Trigger on `auth.users` already promotes signups; extend `handle_new_user` to consume `invitations` token from `raw_user_meta_data` and assign correct role + links
+### 1. Remove admin link from teacher dashboard
+- `src/routes/_authenticated/teacher.tsx`: drop the `if (me.roles.includes("admin"))` block that injects the "Admin panel" nav item. Admins reach `/admin` only via `/login` → auto-redirect.
 
-## RLS rewrite (scoped by role)
+### 2. Role-aware login UX
+- Replace `/login` with a small role picker (Teacher / Parent / Admin) at the top of the card. Selection is cosmetic + sets the post-login redirect hint, but actual routing is still driven by the user's real role from `getMe()` (admin → `/admin`, teacher → `/teacher`, parent → `/parent`). This prevents a parent signing in on the "Teacher" tab from landing in the wrong place.
+- After successful sign-in, if the user is **pending approval**, sign them out immediately and show a clear "Awaiting admin approval" message on the login page.
+- Update landing page CTAs: "Sign in as Teacher", "Sign in as Parent", plus a subtle "Admin" link in the footer/nav.
 
-- **classes**: insert/update/delete → admin only. Read → admin, assigned teachers (via `teacher_subjects.class_id` or via classes they're listed under), parents of enrolled students.
-- **students**: insert/update/delete → admin only. Read → admin, teachers who teach a subject in that student's class, parents linked to that student.
-- **homework**: insert → teacher must own a `teacher_subjects` row for `(subject_id, class_id)`. Read → admin, teacher who created it OR teaches that subject+class, parents/students linked.
-- **ai_configs**: teachers can only write `scope='student'` configs for students in their classes AND for one of their subjects (new `subject_id` column on ai_configs). Admin: all. Remove teacher access to global `scope='global'` admin config.
-- **subjects / teacher_subjects / invitations / parent_students**: admin-only writes; teachers read their own `teacher_subjects`; parents read their own `parent_students`.
+### 3. Approval workflow (DB + server)
 
-New SECURITY DEFINER helpers:
-- `is_admin()` — wraps `has_role(auth.uid(),'admin')`
-- `teacher_teaches(_subject_id, _class_id)` — checks `teacher_subjects`
-- `teacher_can_see_student(_student_id)` — true if teacher teaches any subject in student's class
+**Migration (new):**
+- Add `approval_status` enum: `pending | approved | rejected` (default `pending`).
+- Add `profiles.approval_status` column, default `pending`.
+- Backfill: set all existing profiles to `approved`. Admin user stays `approved`.
+- Update `handle_new_user()` trigger:
+  - If signup uses a valid `invite_token` → `approval_status = 'approved'` (admin already vetted).
+  - Otherwise (self-registered teacher/parent from landing page) → `approval_status = 'pending'`.
+- Add helper `public.is_approved(uuid)` (SECURITY DEFINER) returning boolean.
+- Tighten existing RLS so pending users see nothing sensitive:
+  - `students`, `classes`, `homework`, `teacher_subjects`, `parent_students`, `ai_configs` policies: AND in `is_approved(auth.uid())` for non-admin roles.
+  - `profiles_self_read` stays open so the user can read their own pending status.
 
-## Server functions
+**Server functions (`src/lib/admin.functions.ts`):**
+- `adminListPendingUsers()` — list profiles where `approval_status = 'pending'`, with role.
+- `adminApproveUser({ user_id })` — set `approval_status = 'approved'`.
+- `adminRejectUser({ user_id })` — set `approval_status = 'rejected'`.
+- `adminListUsers` already exists; extend to include `approval_status`.
 
-New `src/lib/admin.functions.ts` (all gated by `is_admin()` check inside handler):
-- Subjects: list/create/update/delete
-- Classes: list/create/update/delete (admin version, no teacher_id filter)
-- Students: list/create/update/delete
-- Teachers: list, assign subjects (+ optional class), unassign
-- Parents: create account via invite, link/unlink to student
-- Invitations: create (admin/teacher/parent), list pending, revoke
-- Users: list all with roles
+**Auth flow (`src/lib/auth.functions.ts`):**
+- Extend `getMe()` to also return `approvalStatus`.
 
-Update `src/lib/teacher.functions.ts`:
-- Remove `createClass`, `createStudent`
-- Filter `listStudents` to students in classes where teacher teaches a subject
-- `listSubjects` → only teacher's assigned subjects
-- `createHomework` validates `subject_id` is in teacher's assignments
-- AI config functions: enforce subject+student scope check; remove global config write
+### 4. UI: Admin approval queue
+- New route `src/routes/_authenticated/admin/approvals.tsx` — table of pending teachers/parents with Approve / Reject buttons. Add nav item "Approvals" (with a badge count) in `admin.tsx`.
+- Update `admin/users.tsx` to show approval status column and allow re-approval/rejection.
 
-Update `src/lib/parent.functions.ts`: unchanged scope, reads via `parent_students`.
+### 5. Login-time gate
+- `src/routes/_authenticated.tsx`: after `getMe()` resolves, if `approvalStatus === 'pending' | 'rejected'` and user isn't admin → `supabase.auth.signOut()` and `redirect({ to: '/login', search: { pending: 1 } })`.
+- `/login` reads `?pending=1` and shows "Your account is awaiting admin approval. You'll be able to sign in once approved."
 
-## Routes & UI
+## Improvement suggestions (optional, flagged for your call)
 
-New `src/routes/_authenticated/admin.tsx` layout — guards with `current_user_role()='admin'`, sidebar nav.
-Children:
-- `admin/index.tsx` — overview dashboard
-- `admin/users.tsx` — list users, change role
-- `admin/invitations.tsx` — create + revoke invites (teacher/parent/admin)
-- `admin/subjects.tsx` — CRUD subjects
-- `admin/classes.tsx` — CRUD classes + assign teachers per subject
-- `admin/students.tsx` — CRUD students, enroll in class
-- `admin/parents.tsx` — create parent accounts, link to students
-- `admin/ai.tsx` — global AI config defaults
+- **Email notification on approval**: send a transactional email when admin approves a user. Requires email infra; can be added later.
+- **Self-serve teacher onboarding metadata**: at signup ask which subject(s)/classes they teach — stored on the pending profile so the admin sees context when approving and can pre-fill `teacher_subjects`.
+- **Audit log of approvals**: write to existing `audit_logs` table (`action='approve_user'`) so there's a trail of who approved whom.
+- **Rate-limit / CAPTCHA on public signup** to prevent spam-flooding the approval queue.
+- **Distinct subdomains/paths** (`/admin/login`) are *not* recommended — same `/login` with role tabs keeps things simpler and avoids leaking the admin URL.
 
-Update teacher routes:
-- Remove "New class" / "New student" buttons
-- `teacher/homework.tsx` subject dropdown shows only assigned subjects
-- `teacher/students.tsx` shows only scoped students
-- `teacher/ai.tsx` removed (no global config for teachers); per-student AI config page stays but enforces subject choice from teacher's assignments
+## Out of scope (this plan)
+- Email delivery, CAPTCHA, audit log writes (listed above as future).
+- Changing the invitation flow — invites still auto-approve.
 
-App shell: show "Admin" link when role is admin.
-
-## Invitation flow
-
-1. Admin creates invite → row in `invitations` with token, role, optional `subject_id`/`student_id` payload
-2. App sends link `/signup?invite=<token>` (email send is out-of-scope; show link in admin UI to copy)
-3. Signup page passes token in `signUp` `options.data` → `handle_new_user` trigger reads token, assigns role + creates `teacher_subjects` or `parent_students` rows, marks invite accepted
-
-## Migration order
-
-1. Create `subjects`, `teacher_subjects`, `invitations` tables + GRANTs + RLS
-2. Add `subject_id` to `homework` and `ai_configs` (nullable initially)
-3. Add SECURITY DEFINER helpers
-4. Drop & recreate RLS on `classes`, `students`, `homework`, `ai_configs` per new rules
-5. Update `handle_new_user` to process invitations
-6. Promote current user (`shantanutiwari2612@gmail.com`) to admin
-
-## Out of scope (this round)
-
-- Email delivery of invites (link is shown in admin UI to copy/share)
-- Bulk CSV import
-- Audit log UI (table already exists; not surfaced)
-
-Confirm to proceed and I'll start with the migration.
+## Files touched
+- **Migration**: new `*_approval_workflow.sql` (enum, column, trigger update, RLS tweaks, helper fn).
+- **Edit**: `src/lib/auth.functions.ts`, `src/lib/admin.functions.ts`, `src/routes/_authenticated.tsx`, `src/routes/_authenticated/teacher.tsx`, `src/routes/_authenticated/admin.tsx`, `src/routes/_authenticated/admin/users.tsx`, `src/routes/login.tsx`, `src/routes/index.tsx`, `src/routes/signup.tsx` (default new signups to pending message).
+- **Create**: `src/routes/_authenticated/admin/approvals.tsx`.

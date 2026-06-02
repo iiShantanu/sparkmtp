@@ -7,15 +7,25 @@ import { Sparkles } from "lucide-react";
 
 export const Route = createFileRoute("/login")({
   head: () => ({ meta: [{ title: "Sign in — Spark" }] }),
+  validateSearch: (s: Record<string, unknown>) => ({
+    status: typeof s.status === "string" ? (s.status as string) : undefined,
+  }),
   component: LoginPage,
 });
 
 function LoginPage() {
   const navigate = useNavigate();
   const fetchMe = useServerFn(getMe);
+  const { status } = Route.useSearch();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    status === "pending"
+      ? "Your account is awaiting admin approval. You'll be able to sign in once approved."
+      : status === "rejected"
+      ? "Your account request was rejected. Please contact your administrator."
+      : null,
+  );
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
@@ -32,7 +42,22 @@ function LoginPage() {
     setLoading(false);
     if (error) return setError(error.message);
     const me = await fetchMe();
-    navigate({ to: me.primaryRole === "parent" ? "/parent" : "/teacher" });
+    if (!me.roles.includes("admin") && me.approvalStatus !== "approved") {
+      await supabase.auth.signOut();
+      setError(
+        me.approvalStatus === "rejected"
+          ? "Your account request was rejected. Please contact your administrator."
+          : "Your account is awaiting admin approval. You'll be able to sign in once approved.",
+      );
+      return;
+    }
+    const target =
+      me.primaryRole === "admin"
+        ? "/admin"
+        : me.primaryRole === "parent"
+        ? "/parent"
+        : "/teacher";
+    navigate({ to: target });
   }
 
   async function resendVerification() {

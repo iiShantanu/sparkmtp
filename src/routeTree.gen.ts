@@ -30,6 +30,7 @@ import { Route as AuthenticatedAdminStudentsRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminParentsRouteImport } from './routes/_authenticated/admin/parents'
 import { Route as AuthenticatedAdminInvitationsRouteImport } from './routes/_authenticated/admin/invitations'
 import { Route as AuthenticatedAdminClassesRouteImport } from './routes/_authenticated/admin/classes'
+import { Route as AuthenticatedAdminApprovalsRouteImport } from './routes/_authenticated/admin/approvals'
 import { Route as AuthenticatedTeacherStudentsStudentIdAiRouteImport } from './routes/_authenticated/teacher/students.$studentId.ai'
 
 const SignupRoute = SignupRouteImport.update({
@@ -145,6 +146,12 @@ const AuthenticatedAdminClassesRoute =
     path: '/classes',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminApprovalsRoute =
+  AuthenticatedAdminApprovalsRouteImport.update({
+    id: '/approvals',
+    path: '/approvals',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedTeacherStudentsStudentIdAiRoute =
   AuthenticatedTeacherStudentsStudentIdAiRouteImport.update({
     id: '/$studentId/ai',
@@ -161,6 +168,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/parent': typeof AuthenticatedParentRouteWithChildren
   '/teacher': typeof AuthenticatedTeacherRouteWithChildren
+  '/admin/approvals': typeof AuthenticatedAdminApprovalsRoute
   '/admin/classes': typeof AuthenticatedAdminClassesRoute
   '/admin/invitations': typeof AuthenticatedAdminInvitationsRoute
   '/admin/parents': typeof AuthenticatedAdminParentsRoute
@@ -181,6 +189,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
+  '/admin/approvals': typeof AuthenticatedAdminApprovalsRoute
   '/admin/classes': typeof AuthenticatedAdminClassesRoute
   '/admin/invitations': typeof AuthenticatedAdminInvitationsRoute
   '/admin/parents': typeof AuthenticatedAdminParentsRoute
@@ -206,6 +215,7 @@ export interface FileRoutesById {
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/parent': typeof AuthenticatedParentRouteWithChildren
   '/_authenticated/teacher': typeof AuthenticatedTeacherRouteWithChildren
+  '/_authenticated/admin/approvals': typeof AuthenticatedAdminApprovalsRoute
   '/_authenticated/admin/classes': typeof AuthenticatedAdminClassesRoute
   '/_authenticated/admin/invitations': typeof AuthenticatedAdminInvitationsRoute
   '/_authenticated/admin/parents': typeof AuthenticatedAdminParentsRoute
@@ -231,6 +241,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/parent'
     | '/teacher'
+    | '/admin/approvals'
     | '/admin/classes'
     | '/admin/invitations'
     | '/admin/parents'
@@ -251,6 +262,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset-password'
     | '/signup'
+    | '/admin/approvals'
     | '/admin/classes'
     | '/admin/invitations'
     | '/admin/parents'
@@ -275,6 +287,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin'
     | '/_authenticated/parent'
     | '/_authenticated/teacher'
+    | '/_authenticated/admin/approvals'
     | '/_authenticated/admin/classes'
     | '/_authenticated/admin/invitations'
     | '/_authenticated/admin/parents'
@@ -448,6 +461,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminClassesRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/approvals': {
+      id: '/_authenticated/admin/approvals'
+      path: '/approvals'
+      fullPath: '/admin/approvals'
+      preLoaderRoute: typeof AuthenticatedAdminApprovalsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/teacher/students/$studentId/ai': {
       id: '/_authenticated/teacher/students/$studentId/ai'
       path: '/$studentId/ai'
@@ -459,6 +479,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedAdminRouteChildren {
+  AuthenticatedAdminApprovalsRoute: typeof AuthenticatedAdminApprovalsRoute
   AuthenticatedAdminClassesRoute: typeof AuthenticatedAdminClassesRoute
   AuthenticatedAdminInvitationsRoute: typeof AuthenticatedAdminInvitationsRoute
   AuthenticatedAdminParentsRoute: typeof AuthenticatedAdminParentsRoute
@@ -469,6 +490,7 @@ interface AuthenticatedAdminRouteChildren {
 }
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
+  AuthenticatedAdminApprovalsRoute: AuthenticatedAdminApprovalsRoute,
   AuthenticatedAdminClassesRoute: AuthenticatedAdminClassesRoute,
   AuthenticatedAdminInvitationsRoute: AuthenticatedAdminInvitationsRoute,
   AuthenticatedAdminParentsRoute: AuthenticatedAdminParentsRoute,
