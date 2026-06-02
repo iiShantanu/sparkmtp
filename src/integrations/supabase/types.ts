@@ -25,6 +25,7 @@ export type Database = {
           owner_id: string
           scope: Database["public"]["Enums"]["ai_scope"]
           scope_id: string | null
+          subject_id: string | null
           subject_instructions: Json
           teaching_style: string
           tone: string
@@ -41,6 +42,7 @@ export type Database = {
           owner_id: string
           scope: Database["public"]["Enums"]["ai_scope"]
           scope_id?: string | null
+          subject_id?: string | null
           subject_instructions?: Json
           teaching_style?: string
           tone?: string
@@ -57,13 +59,22 @@ export type Database = {
           owner_id?: string
           scope?: Database["public"]["Enums"]["ai_scope"]
           scope_id?: string | null
+          subject_id?: string | null
           subject_instructions?: Json
           teaching_style?: string
           tone?: string
           updated_at?: string
           updated_by?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "ai_configs_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       audit_logs: {
         Row: {
@@ -183,6 +194,7 @@ export type Database = {
           id: string
           instructions: string | null
           subject: string
+          subject_id: string | null
           teacher_id: string
           title: string
           updated_at: string
@@ -196,6 +208,7 @@ export type Database = {
           id?: string
           instructions?: string | null
           subject: string
+          subject_id?: string | null
           teacher_id: string
           title: string
           updated_at?: string
@@ -209,6 +222,7 @@ export type Database = {
           id?: string
           instructions?: string | null
           subject?: string
+          subject_id?: string | null
           teacher_id?: string
           title?: string
           updated_at?: string
@@ -220,6 +234,13 @@ export type Database = {
             columns: ["class_id"]
             isOneToOne: false
             referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "homework_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
             referencedColumns: ["id"]
           },
         ]
@@ -331,6 +352,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      invitations: {
+        Row: {
+          accepted_at: string | null
+          accepted_user_id: string | null
+          created_at: string
+          created_by: string | null
+          email: string
+          expires_at: string
+          id: string
+          payload: Json
+          role: Database["public"]["Enums"]["app_role"]
+          token: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_user_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          email: string
+          expires_at?: string
+          id?: string
+          payload?: Json
+          role: Database["public"]["Enums"]["app_role"]
+          token?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_user_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string
+          expires_at?: string
+          id?: string
+          payload?: Json
+          role?: Database["public"]["Enums"]["app_role"]
+          token?: string
+        }
+        Relationships: []
       }
       notifications: {
         Row: {
@@ -492,6 +552,66 @@ export type Database = {
           },
         ]
       }
+      subjects: {
+        Row: {
+          code: string | null
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          code?: string | null
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          code?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      teacher_subjects: {
+        Row: {
+          class_id: string | null
+          created_at: string
+          id: string
+          subject_id: string
+          teacher_id: string
+        }
+        Insert: {
+          class_id?: string | null
+          created_at?: string
+          id?: string
+          subject_id: string
+          teacher_id: string
+        }
+        Update: {
+          class_id?: string | null
+          created_at?: string
+          id?: string
+          subject_id?: string
+          teacher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teacher_subjects_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teacher_subjects_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -529,8 +649,18 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_admin: { Args: never; Returns: boolean }
       is_student_parent: { Args: { _student_id: string }; Returns: boolean }
       is_student_teacher: { Args: { _student_id: string }; Returns: boolean }
+      teacher_can_see_class: { Args: { _class_id: string }; Returns: boolean }
+      teacher_can_see_student: {
+        Args: { _student_id: string }
+        Returns: boolean
+      }
+      teacher_teaches: {
+        Args: { _class_id: string; _subject_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       ai_mode: "guided" | "step_by_step" | "hint_only" | "direct"
