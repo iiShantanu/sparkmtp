@@ -282,7 +282,8 @@ function VoiceModeContent({ token, onBack }: { token: string; onBack: () => void
     onConnect: () => setStatus("Connected"),
     onDisconnect: () => setStatus("Idle"),
     onError: (e: unknown) => setStatus(`Error: ${e instanceof Error ? e.message : String(e)}`),
-    onMessage: (m: VoiceMessage) => {
+    onMessage: (message: unknown) => {
+      const m = message as VoiceMessage;
       if (m?.type === "user_transcript")
         setTranscript((t) => [
           ...t,
