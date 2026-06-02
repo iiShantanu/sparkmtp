@@ -10,6 +10,7 @@ import {
   ackNotice,
 } from "@/lib/student-runtime.functions";
 import { deviceHeartbeat } from "@/lib/device.functions";
+import { SparkAvatar, type SparkEmotion } from "@/components/spark-avatar";
 
 export const Route = createFileRoute("/student")({
   head: () => ({ meta: [{ title: "Spark · Student" }] }),
@@ -37,7 +38,9 @@ function StudentTablet() {
   const [view, setView] = useState<"home" | "voice" | "homework">("home");
   const [activeHomework, setActiveHomework] = useState<any | null>(null);
   const [activeNotice, setActiveNotice] = useState<Notice | null>(null);
+  const [noticesOpen, setNoticesOpen] = useState(false);
   const dismissedRef = useRef<Set<string>>(new Set());
+  const [, forceRender] = useState(0);
 
   useEffect(() => {
     const t = typeof window !== "undefined" ? localStorage.getItem("spark_device_token") : null;
@@ -94,6 +97,16 @@ function StudentTablet() {
   }
 
   const student = session.student;
+  const notices: Notice[] = session.notices ?? [];
+  const unseenCount = notices.filter((n) => !dismissedRef.current.has(n.id)).length;
+
+  async function dismiss(id: string) {
+    dismissedRef.current.add(id);
+    forceRender((x) => x + 1);
+    try {
+      await ack({ data: { device_token: token!, notice_id: id } });
+    } catch {}
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -110,10 +123,19 @@ function StudentTablet() {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+        <button
+          onClick={() => setNoticesOpen(true)}
+          className="relative inline-flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+          aria-label="Open notices"
+        >
           <Bell className="h-4 w-4" />
-          {session.notices.length} notice{session.notices.length === 1 ? "" : "s"}
-        </div>
+          {notices.length} notice{notices.length === 1 ? "" : "s"}
+          {unseenCount > 0 && (
+            <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+              {unseenCount}
+            </span>
+          )}
+        </button>
       </header>
 
       <main className="mx-auto max-w-4xl p-6">
@@ -143,12 +165,18 @@ function StudentTablet() {
         <NoticeModal
           notice={activeNotice}
           onClose={async () => {
-            dismissedRef.current.add(activeNotice.id);
-            try {
-              await ack({ data: { device_token: token, notice_id: activeNotice.id } });
-            } catch {}
+            await dismiss(activeNotice.id);
             setActiveNotice(null);
           }}
+        />
+      )}
+
+      {noticesOpen && (
+        <NoticesPanel
+          notices={notices}
+          dismissed={dismissedRef.current}
+          onDismiss={dismiss}
+          onClose={() => setNoticesOpen(false)}
         />
       )}
     </div>
@@ -168,12 +196,10 @@ function Home({
     <div className="space-y-6">
       <button
         onClick={onTalk}
-        className="group flex w-full items-center gap-4 rounded-2xl bg-gradient-to-br from-primary to-primary/70 p-6 text-left text-primary-foreground shadow-sm hover:from-primary/90"
+        className="group flex w-full items-center gap-6 rounded-2xl bg-gradient-to-br from-primary to-primary/70 p-6 text-left text-primary-foreground shadow-sm hover:from-primary/90"
       >
-        <span className="grid h-14 w-14 place-items-center rounded-full bg-primary-foreground/15">
-          <Mic className="h-6 w-6" />
-        </span>
-        <div>
+        <SparkAvatar emotion="friendly" size={110} showLabel={false} />
+        <div className="flex-1">
           <div className="text-lg font-semibold">Talk to Spark</div>
           <div className="text-sm opacity-90">
             Ask anything. Spark will help you understand it step by step.
@@ -221,6 +247,7 @@ function VoiceMode({ token, onBack }: { token: string; onBack: () => void }) {
   const [status, setStatus] = useState<string>("Idle");
   const [warning, setWarning] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<Array<{ role: string; text: string }>>([]);
+  const [agentEmotion, setAgentEmotion] = useState<SparkEmotion>("friendly");
 
   const conversation = useConversation({
     onConnect: () => setStatus("Connected"),
@@ -229,8 +256,13 @@ function VoiceMode({ token, onBack }: { token: string; onBack: () => void }) {
     onMessage: (m: any) => {
       if (m?.type === "user_transcript")
         setTranscript((t) => [...t, { role: "you", text: m.user_transcription_event?.user_transcript ?? "" }]);
-      if (m?.type === "agent_response")
-        setTranscript((t) => [...t, { role: "spark", text: m.agent_response_event?.agent_response ?? "" }]);
+      if (m?.type === "agent_response") {
+        const raw = m.agent_response_event?.agent_response ?? "";
+        const match = raw.match(/^\s*\[emotion:([a-z]+)\]\s*/i);
+        if (match) setAgentEmotion(match[1].toLowerCase() as SparkEmotion);
+        const clean = raw.replace(/^\s*\[emotion:[a-z]+\]\s*/i, "");
+        setTranscript((t) => [...t, { role: "spark", text: clean }]);
+      }
     },
   });
 
@@ -255,6 +287,13 @@ function VoiceMode({ token, onBack }: { token: string; onBack: () => void }) {
   }
 
   const connected = conversation.status === "connected";
+  const liveEmotion: SparkEmotion = !connected
+    ? "idle"
+    : conversation.isSpeaking
+    ? "speaking"
+    : status.startsWith("Error")
+    ? "error"
+    : (agentEmotion === "friendly" ? "listening" : agentEmotion);
 
   return (
     <div className="space-y-4">
@@ -262,21 +301,7 @@ function VoiceMode({ token, onBack }: { token: string; onBack: () => void }) {
         ← Back
       </button>
       <div className="grid place-items-center rounded-3xl border border-border bg-card p-10 text-center">
-        <div
-          className={`grid h-28 w-28 place-items-center rounded-full transition ${
-            connected
-              ? conversation.isSpeaking
-                ? "bg-primary/20 ring-8 ring-primary/30"
-                : "bg-primary/10 ring-4 ring-primary/20"
-              : "bg-muted"
-          }`}
-        >
-          {connected ? (
-            <Mic className="h-10 w-10 text-primary" />
-          ) : (
-            <MicOff className="h-10 w-10 text-muted-foreground" />
-          )}
-        </div>
+        <SparkAvatar emotion={liveEmotion} size={220} />
         <div className="mt-6 text-xl font-semibold">
           {connected ? (conversation.isSpeaking ? "Spark is speaking…" : "Listening…") : "Tap to talk"}
         </div>
@@ -286,16 +311,16 @@ function VoiceMode({ token, onBack }: { token: string; onBack: () => void }) {
           {!connected ? (
             <button
               onClick={begin}
-              className="rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
-              Start
+              <Mic className="h-4 w-4" /> Start
             </button>
           ) : (
             <button
               onClick={() => conversation.endSession()}
-              className="rounded-md border border-border px-5 py-2.5 text-sm hover:bg-accent"
+              className="inline-flex items-center gap-2 rounded-md border border-border px-5 py-2.5 text-sm hover:bg-accent"
             >
-              End
+              <MicOff className="h-4 w-4" /> End
             </button>
           )}
         </div>
@@ -327,6 +352,14 @@ function HomeworkMode({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [turns, setTurns] = useState<Array<{ role: "you" | "spark"; text: string }>>([]);
+  const [emotion, setEmotion] = useState<SparkEmotion>("friendly");
+
+  useEffect(() => {
+    if (!err) return;
+    setEmotion("error");
+    const t = setTimeout(() => setEmotion("friendly"), 3000);
+    return () => clearTimeout(t);
+  }, [err]);
 
   async function send() {
     if (!input.trim() || busy) return;
@@ -334,12 +367,15 @@ function HomeworkMode({
     setInput("");
     setBusy(true);
     setErr(null);
+    setEmotion("thinking");
     setTurns((t) => [...t, { role: "you", text }]);
     try {
       const res = await run({
         data: { device_token: token, homework_id: homework.id, text },
       });
       setTurns((t) => [...t, { role: "spark", text: res.reply }]);
+      if ((res as any).emotion) setEmotion((res as any).emotion as SparkEmotion);
+      else setEmotion("friendly");
       if (res.audio_base64) {
         const audio = new Audio(`data:audio/mpeg;base64,${res.audio_base64}`);
         audio.play().catch(() => {});
@@ -356,6 +392,9 @@ function HomeworkMode({
       <button onClick={onBack} className="text-sm text-muted-foreground hover:text-foreground">
         ← Back
       </button>
+      <div className="flex justify-center rounded-xl border border-border bg-card p-4">
+        <SparkAvatar emotion={busy ? "thinking" : emotion} size={140} />
+      </div>
       <div className="rounded-xl border border-border bg-card p-5">
         <div className="text-xs uppercase tracking-wide text-muted-foreground">{homework.subject}</div>
         <h2 className="text-lg font-semibold">{homework.title}</h2>
@@ -426,6 +465,70 @@ function NoticeModal({ notice, onClose }: { notice: Notice; onClose: () => void 
           Got it
         </button>
       </div>
+    </div>
+  );
+}
+
+function NoticesPanel({
+  notices,
+  dismissed,
+  onDismiss,
+  onClose,
+}: {
+  notices: Notice[];
+  dismissed: Set<string>;
+  onDismiss: (id: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={onClose}>
+      <aside
+        onClick={(e) => e.stopPropagation()}
+        className="h-full w-full max-w-md overflow-y-auto border-l border-border bg-card p-6 shadow-xl animate-slide-in-right"
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Bell className="h-5 w-5" /> Notices
+          </h2>
+          <button onClick={onClose} aria-label="Close" className="text-muted-foreground hover:text-foreground">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        {notices.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No notices yet.</p>
+        ) : (
+          <ul className="space-y-3">
+            {notices.map((n) => {
+              const seen = dismissed.has(n.id);
+              return (
+                <li
+                  key={n.id}
+                  className={`rounded-xl border p-4 ${
+                    seen ? "border-border bg-background" : "border-primary/40 bg-primary/5"
+                  }`}
+                >
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-primary">
+                    {n.kind.replace("_", " ")}
+                  </div>
+                  <div className="mt-1 font-semibold">{n.title}</div>
+                  {n.body && <p className="mt-1 text-sm text-muted-foreground">{n.body}</p>}
+                  <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                    <span>{new Date(n.starts_at).toLocaleString()}</span>
+                    {!seen && (
+                      <button
+                        onClick={() => onDismiss(n.id)}
+                        className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+                      >
+                        Mark seen
+                      </button>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </aside>
     </div>
   );
 }
