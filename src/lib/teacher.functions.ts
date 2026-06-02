@@ -202,3 +202,92 @@ export const upsertMyAiConfig = createServerFn({ method: "POST" })
     }
     return { ok: true };
   });
+
+const aiConfigShape = z.object({
+  custom_prompt: z.string().max(8000),
+  mode: z.enum(["guided", "direct", "hint_only", "step_by_step"]),
+  complexity: z.string().min(1).max(40),
+  language: z.string().min(1).max(40),
+  tone: z.string().min(1).max(40),
+  teaching_style: z.string().min(1).max(40),
+});
+
+export const getStudentAiConfig = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) => z.object({ student_id: z.string().uuid() }).parse(i))
+  .handler(async ({ context, data }) => {
+    const { supabase, userId } = context;
+    const { data: student, error: sErr } = await supabase
+      .from("students")
+      .select("id,full_name,class_id,classes!inner(name,section,teacher_id)")
+      .eq("id", data.student_id)
+      .maybeSingle();
+    if (sErr) throw new Error(sErr.message);
+    if (!student) throw new Error("Student not found");
+
+    const { data: cfg } = await supabase
+      .from("ai_configs")
+      .select("*")
+      .eq("owner_id", userId)
+      .eq("scope", "student")
+      .eq("scope_id", data.student_id)
+      .maybeSingle();
+
+    const { data: fallback } = await supabase
+      .from("ai_configs")
+      .select("*")
+      .eq("owner_id", userId)
+      .eq("scope", "global")
+      .maybeSingle();
+
+    return { student, config: cfg, fallback };
+  });
+
+export const upsertStudentAiConfig = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) =>
+    aiConfigShape.extend({ student_id: z.string().uuid() }).parse(i),
+  )
+  .handler(async ({ context, data }) => {
+    const { supabase, userId } = context;
+    const { student_id, ...cfg } = data;
+    const existing = await supabase
+      .from("ai_configs")
+      .select("id")
+      .eq("owner_id", userId)
+      .eq("scope", "student")
+      .eq("scope_id", student_id)
+      .maybeSingle();
+    if (existing.data) {
+      const { error } = await supabase
+        .from("ai_configs")
+        .update({ ...cfg, updated_by: userId })
+        .eq("id", existing.data.id);
+      if (error) throw new Error(error.message);
+    } else {
+      const { error } = await supabase.from("ai_configs").insert({
+        ...cfg,
+        owner_id: userId,
+        scope: "student",
+        scope_id: student_id,
+        updated_by: userId,
+      });
+      if (error) throw new Error(error.message);
+    }
+    return { ok: true };
+  });
+
+export const deleteStudentAiConfig = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) => z.object({ student_id: z.string().uuid() }).parse(i))
+  .handler(async ({ context, data }) => {
+    const { supabase, userId } = context;
+    const { error } = await supabase
+      .from("ai_configs")
+      .delete()
+      .eq("owner_id", userId)
+      .eq("scope", "student")
+      .eq("scope_id", data.student_id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });

@@ -1,4 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
+import { Brain } from "lucide-react";
 import { useQueryClient, useSuspenseQuery, queryOptions } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
@@ -155,9 +157,18 @@ function StudentsPage() {
                     {(s.classes as unknown as { name: string }).name}
                   </div>
                 </div>
-                {s.roll_number && (
-                  <span className="text-xs text-muted-foreground">#{s.roll_number}</span>
-                )}
+                <div className="flex items-center gap-3">
+                  {s.roll_number && (
+                    <span className="text-xs text-muted-foreground">#{s.roll_number}</span>
+                  )}
+                  <Link
+                    to="/teacher/students/$studentId/ai"
+                    params={{ studentId: s.id }}
+                    className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-accent"
+                  >
+                    <Brain className="h-3 w-3" /> AI
+                  </Link>
+                </div>
               </li>
             ))}
           </ul>
