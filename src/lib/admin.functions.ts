@@ -259,7 +259,7 @@ export const adminCreateInvitation = createServerFn({ method: "POST" })
   )
   .handler(async ({ context, data }) => {
     await assertAdmin(context.supabase, context.userId);
-    const payload: Record<string, unknown> = {};
+    const payload: Record<string, any> = {};
     if (data.subjects?.length) payload.subjects = data.subjects;
     if (data.students?.length) payload.students = data.students;
     const { data: row, error } = await context.supabase
@@ -267,7 +267,7 @@ export const adminCreateInvitation = createServerFn({ method: "POST" })
       .insert({
         email: data.email,
         role: data.role,
-        payload,
+        payload: payload as any,
         created_by: context.userId,
       })
       .select("token")
