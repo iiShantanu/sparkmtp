@@ -6,6 +6,7 @@ import { Bell, BookOpen, Loader2, Mic, MicOff, Send, Sparkles, X } from "lucide-
 import {
   getStudentSession,
   runHomeworkTurn,
+  runSparkTextTurn,
   startVoiceConversation,
   ackNotice,
 } from "@/lib/student-runtime.functions";
@@ -252,8 +253,11 @@ function VoiceMode({ token, onBack }: { token: string; onBack: () => void }) {
 
 function VoiceModeContent({ token, onBack }: { token: string; onBack: () => void }) {
   const start = useServerFn(startVoiceConversation);
+  const textTurn = useServerFn(runSparkTextTurn);
   const [status, setStatus] = useState<string>("Idle");
   const [warning, setWarning] = useState<string | null>(null);
+  const [textInput, setTextInput] = useState("");
+  const [textBusy, setTextBusy] = useState(false);
   const [transcript, setTranscript] = useState<Array<{ role: string; text: string }>>([]);
   const [agentEmotion, setAgentEmotion] = useState<SparkEmotion>("friendly");
 
@@ -294,8 +298,30 @@ function VoiceModeContent({ token, onBack }: { token: string; onBack: () => void
     }
   }
 
+  async function sendTextTurn() {
+    const text = textInput.trim();
+    if (!text || textBusy) return;
+    setTextInput("");
+    setTextBusy(true);
+    setWarning(null);
+    setAgentEmotion("thinking");
+    setTranscript((t) => [...t, { role: "you", text }]);
+    try {
+      const res = await textTurn({ data: { device_token: token, text } });
+      setAgentEmotion((res.emotion as SparkEmotion) ?? "friendly");
+      setTranscript((t) => [...t, { role: "spark", text: res.reply }]);
+    } catch (e) {
+      setAgentEmotion("error");
+      setWarning((e as Error).message);
+    } finally {
+      setTextBusy(false);
+    }
+  }
+
   const connected = conversation.status === "connected";
-  const liveEmotion: SparkEmotion = !connected
+  const liveEmotion: SparkEmotion = textBusy
+    ? "thinking"
+    : !connected
     ? "idle"
     : conversation.isSpeaking
     ? "speaking"
@@ -342,6 +368,28 @@ function VoiceModeContent({ token, onBack }: { token: string; onBack: () => void
           ))}
         </div>
       )}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          sendTextTurn();
+        }}
+        className="flex gap-2 rounded-xl border border-border bg-card p-3"
+      >
+        <input
+          value={textInput}
+          onChange={(e) => setTextInput(e.target.value)}
+          placeholder="Type to Spark if voice is unavailable…"
+          className="flex-1 rounded-md border border-input bg-background px-3 py-2.5 text-sm"
+        />
+        <button
+          type="submit"
+          disabled={textBusy || !textInput.trim()}
+          className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+        >
+          {textBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          Send
+        </button>
+      </form>
     </div>
   );
 }
