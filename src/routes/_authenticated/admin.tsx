@@ -1,6 +1,6 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { LayoutDashboard, Users, BookOpen, GraduationCap, UserCog, Mail, Library } from "lucide-react";
+import { LayoutDashboard, Users, BookOpen, GraduationCap, UserCog, Mail, Library, UserCheck } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { meQueryOptions } from "@/routes/_authenticated";
 
@@ -26,6 +26,7 @@ function AdminLayout() {
       }}
       nav={[
         { to: "/admin", label: "Overview", icon: <LayoutDashboard className="h-4 w-4" /> },
+        { to: "/admin/approvals", label: "Approvals", icon: <UserCheck className="h-4 w-4" /> },
         { to: "/admin/users", label: "Users", icon: <UserCog className="h-4 w-4" /> },
         { to: "/admin/invitations", label: "Invitations", icon: <Mail className="h-4 w-4" /> },
         { to: "/admin/subjects", label: "Subjects", icon: <Library className="h-4 w-4" /> },

@@ -132,7 +132,7 @@ export const adminListUsers = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     await assertAdmin(context.supabase, context.userId);
     const [{ data: profiles }, { data: roles }] = await Promise.all([
-      context.supabase.from("profiles").select("id,full_name,email,created_at"),
+      context.supabase.from("profiles").select("id,full_name,email,created_at,approval_status"),
       context.supabase.from("user_roles").select("user_id,role"),
     ]);
     const roleMap = new Map<string, string[]>();
@@ -142,6 +142,49 @@ export const adminListUsers = createServerFn({ method: "GET" })
       roleMap.set(r.user_id, a);
     });
     return (profiles ?? []).map((p: any) => ({ ...p, roles: roleMap.get(p.id) ?? [] }));
+  });
+
+// ---------- Approval queue ----------
+export const adminListPending = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const { data: profiles } = await context.supabase
+      .from("profiles")
+      .select("id,full_name,email,created_at,approval_status")
+      .eq("approval_status", "pending")
+      .order("created_at", { ascending: false });
+    const ids = (profiles ?? []).map((p: any) => p.id);
+    const { data: roles } = ids.length
+      ? await context.supabase.from("user_roles").select("user_id,role").in("user_id", ids)
+      : { data: [] as any[] };
+    const rmap = new Map<string, string[]>();
+    (roles ?? []).forEach((r: any) => {
+      const a = rmap.get(r.user_id) ?? [];
+      a.push(r.role);
+      rmap.set(r.user_id, a);
+    });
+    return (profiles ?? []).map((p: any) => ({ ...p, roles: rmap.get(p.id) ?? [] }));
+  });
+
+export const adminSetApproval = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) =>
+    z
+      .object({
+        user_id: z.string().uuid(),
+        status: z.enum(["approved", "rejected", "pending"]),
+      })
+      .parse(i),
+  )
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const { error } = await context.supabase
+      .from("profiles")
+      .update({ approval_status: data.status })
+      .eq("id", data.user_id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
   });
 
 export const adminListTeacherAssignments = createServerFn({ method: "GET" })

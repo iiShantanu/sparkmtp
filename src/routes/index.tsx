@@ -71,12 +71,15 @@ function Index() {
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link to="/signup" className="rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90">
-              Create an account
+              Register as teacher or parent
             </Link>
             <Link to="/login" className="rounded-md border border-border bg-card px-5 py-2.5 text-sm font-medium hover:bg-muted">
               Sign in
             </Link>
           </div>
+          <p className="mt-3 text-xs text-muted-foreground">
+            New teacher and parent accounts require admin approval before sign-in is enabled.
+          </p>
         </section>
 
         <section className="mt-20 grid gap-4 sm:grid-cols-3">
