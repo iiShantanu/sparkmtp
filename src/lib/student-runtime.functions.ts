@@ -113,6 +113,44 @@ function extractEmotion(raw: string): { emotion: Emotion; reply: string } {
   return { emotion: "friendly", reply: raw.trim() };
 }
 
+async function generateSparkReply(system: string, userText: string) {
+  const key = process.env.LOVABLE_API_KEY;
+  if (!key) throw new Error("LOVABLE_API_KEY not configured");
+
+  const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Lovable-API-Key": key,
+      "X-Lovable-AIG-SDK": "vercel-ai-sdk",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "google/gemini-3-flash-preview",
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: userText },
+      ],
+    }),
+  });
+  if (!aiRes.ok) {
+    const txt = await aiRes.text();
+    console.error("Lovable AI gateway error", aiRes.status, txt);
+    throw new Error(
+      aiRes.status === 402
+        ? "AI credits exhausted. Ask an admin to top up Lovable Cloud."
+        : aiRes.status === 429
+          ? "Spark is a bit busy — try again in a moment."
+          : `AI failed (${aiRes.status})`,
+    );
+  }
+
+  const aiJson = (await aiRes.json()) as any;
+  const raw: string =
+    aiJson.choices?.[0]?.message?.content?.toString() ??
+    "I'm not sure how to help with that yet.";
+  return extractEmotion(raw);
+}
+
 // ---------- public, device-token-authed functions ----------
 
 export const getStudentSession = createServerFn({ method: "POST" })
