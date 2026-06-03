@@ -553,6 +553,36 @@ export type Database = {
         }
         Relationships: []
       }
+      student_learning_profile: {
+        Row: {
+          current_focus: string | null
+          last_session_summary: string | null
+          strong_topics: string[]
+          student_id: string
+          unresolved_doubts: Json
+          updated_at: string
+          weak_topics: string[]
+        }
+        Insert: {
+          current_focus?: string | null
+          last_session_summary?: string | null
+          strong_topics?: string[]
+          student_id: string
+          unresolved_doubts?: Json
+          updated_at?: string
+          weak_topics?: string[]
+        }
+        Update: {
+          current_focus?: string | null
+          last_session_summary?: string | null
+          strong_topics?: string[]
+          student_id?: string
+          unresolved_doubts?: Json
+          updated_at?: string
+          weak_topics?: string[]
+        }
+        Relationships: []
+      }
       students: {
         Row: {
           avatar_url: string | null
