@@ -9,6 +9,7 @@ import {
   runSparkTextTurn,
   startVoiceConversation,
   ackNotice,
+  summarizeVoiceSession,
 } from "@/lib/student-runtime.functions";
 import { deviceHeartbeat } from "@/lib/device.functions";
 import { SparkAvatar, type SparkEmotion } from "@/components/spark-avatar";
@@ -274,29 +275,41 @@ function VoiceMode({ token, onBack }: { token: string; onBack: () => void }) {
 function VoiceModeContent({ token, onBack }: { token: string; onBack: () => void }) {
   const start = useServerFn(startVoiceConversation);
   const textTurn = useServerFn(runSparkTextTurn);
+  const summarize = useServerFn(summarizeVoiceSession);
   const [status, setStatus] = useState<string>("Idle");
   const [warning, setWarning] = useState<string | null>(null);
   const [textInput, setTextInput] = useState("");
   const [textBusy, setTextBusy] = useState(false);
   const [transcript, setTranscript] = useState<Array<{ role: string; text: string }>>([]);
   const [agentEmotion, setAgentEmotion] = useState<SparkEmotion>("friendly");
+  const transcriptRef = useRef<Array<{ role: string; text: string }>>([]);
 
   const conversation = useConversation({
     onConnect: () => setStatus("Connected"),
-    onDisconnect: () => setStatus("Idle"),
+    onDisconnect: () => {
+      setStatus("Idle");
+      const lines = transcriptRef.current
+        .map((m) => `${m.role}: ${m.text}`)
+        .join("\n");
+      if (lines.trim().length > 0) {
+        summarize({ data: { device_token: token, transcript: lines } }).catch(() => {});
+      }
+      transcriptRef.current = [];
+    },
     onError: (e: unknown) => setStatus(`Error: ${e instanceof Error ? e.message : String(e)}`),
     onMessage: (message: unknown) => {
       const m = message as VoiceMessage;
-      if (m?.type === "user_transcript")
-        setTranscript((t) => [
-          ...t,
-          { role: "you", text: m.user_transcription_event?.user_transcript ?? "" },
-        ]);
+      if (m?.type === "user_transcript") {
+        const text = m.user_transcription_event?.user_transcript ?? "";
+        transcriptRef.current.push({ role: "student", text });
+        setTranscript((t) => [...t, { role: "you", text }]);
+      }
       if (m?.type === "agent_response") {
         const raw = m.agent_response_event?.agent_response ?? "";
         const match = raw.match(/^\s*\[emotion:([a-z]+)\]\s*/i);
         if (match) setAgentEmotion(match[1].toLowerCase() as SparkEmotion);
         const clean = raw.replace(/^\s*\[emotion:[a-z]+\]\s*/i, "");
+        transcriptRef.current.push({ role: "spark", text: clean });
         setTranscript((t) => [...t, { role: "spark", text: clean }]);
       }
     },
@@ -316,7 +329,14 @@ function VoiceModeContent({ token, onBack }: { token: string; onBack: () => void
       await conversation.startSession({
         conversationToken: res.token,
         connectionType: "webrtc",
-      });
+        overrides: {
+          agent: {
+            prompt: res.systemPrompt ? { prompt: res.systemPrompt } : undefined,
+            firstMessage: res.firstMessage ?? undefined,
+            language: res.language ?? undefined,
+          },
+        },
+      } as any);
     } catch (e) {
       setStatus(`Error: ${(e as Error).message}`);
     }
