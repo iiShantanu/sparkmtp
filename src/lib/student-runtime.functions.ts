@@ -3,6 +3,13 @@ import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireDevice } from "./device-auth.server";
 import { sttBase64, tts, getConversationToken } from "./elevenlabs.server";
+import {
+  loadStudentContext,
+  buildTutorSystemPrompt,
+  buildFirstMessage,
+  updateLearningProfile,
+  getLearningProfile,
+} from "./spark-context.server";
 
 const DEFAULT_VOICE = "EXAVITQu4vr4xnSDxMaL"; // Sarah
 
@@ -222,18 +229,30 @@ export const startVoiceConversation = createServerFn({ method: "POST" })
       .parse(i),
   )
   .handler(async ({ data }) => {
-    await requireDevice(data.device_token);
+    const { student_id } = await requireDevice(data.device_token);
     const agentId = process.env.ELEVENLABS_AGENT_ID;
     if (!agentId) {
       return {
         agentId: null,
         token: null,
+        systemPrompt: null,
+        firstMessage: null,
+        language: null,
         warning:
           "ELEVENLABS_AGENT_ID is not set. Create a Conversational AI agent in ElevenLabs and add the agent id as a secret to enable live voice chat.",
       };
     }
-    const token = await getConversationToken(agentId);
-    return { agentId, token, warning: null };
+    const cfg = await resolveConfigFor(student_id, data.subject_id ?? null);
+    const ctx = await loadStudentContext(student_id, cfg);
+    const [token] = await Promise.all([getConversationToken(agentId)]);
+    return {
+      agentId,
+      token,
+      systemPrompt: buildTutorSystemPrompt(ctx),
+      firstMessage: buildFirstMessage(ctx),
+      language: cfg.language,
+      warning: null,
+    };
   });
 
 export const runSparkTextTurn = createServerFn({ method: "POST" })
@@ -266,6 +285,13 @@ export const runSparkTextTurn = createServerFn({ method: "POST" })
       ai_response: reply,
       transcript: data.text,
     });
+
+    // Fire-and-forget memory update so the next session is smarter.
+    updateLearningProfile({
+      student_id,
+      exchange: `student: ${data.text}\nspark: ${reply}`,
+      prev: await getLearningProfile(student_id),
+    }).catch(() => {});
 
     return { reply, emotion, audio_base64: audio };
   });
@@ -334,7 +360,29 @@ export const runHomeworkTurn = createServerFn({ method: "POST" })
       transcript: userText,
     });
 
+    updateLearningProfile({
+      student_id,
+      exchange: `homework "${(hw as any).title}"\nstudent: ${userText}\nspark: ${reply}`,
+      prev: await getLearningProfile(student_id),
+    }).catch(() => {});
+
     return { transcript: userText, reply, emotion, audio_base64: audio };
+  });
+
+export const summarizeVoiceSession = createServerFn({ method: "POST" })
+  .inputValidator((i) =>
+    z
+      .object({
+        device_token: z.string().min(10),
+        transcript: z.string().min(1).max(40_000),
+      })
+      .parse(i),
+  )
+  .handler(async ({ data }) => {
+    const { student_id } = await requireDevice(data.device_token);
+    const prev = await getLearningProfile(student_id);
+    await updateLearningProfile({ student_id, exchange: data.transcript, prev });
+    return { ok: true };
   });
 
 export const ackNotice = createServerFn({ method: "POST" })
