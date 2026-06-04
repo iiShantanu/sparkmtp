@@ -642,35 +642,6 @@ function HomeworkMode({
   );
 }
 
-function NoticeModal({ notice, onClose }: { notice: Notice; onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-6">
-      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-lg">
-        <div className="mb-2 flex items-start justify-between">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-primary">
-            <Bell className="h-4 w-4" /> {notice.kind.replace("_", " ")}
-          </div>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="text-muted-foreground hover:text-foreground"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <h3 className="text-lg font-semibold">{notice.title}</h3>
-        {notice.body && <p className="mt-2 text-sm text-muted-foreground">{notice.body}</p>}
-        <button
-          onClick={onClose}
-          className="mt-5 w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-        >
-          Got it
-        </button>
-      </div>
-    </div>
-  );
-}
-
 function NoticesPanel({
   notices,
   dismissed,
