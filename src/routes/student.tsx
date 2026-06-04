@@ -94,10 +94,10 @@ function StudentTablet() {
   const [session, setSession] = useState<StudentSession | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [view, setView] = useState<"home" | "voice" | "homework">("home");
+  const [tool, setTool] = useState<null | "music" | "pomodoro" | "wifi" | "bt">(null);
   const [activeHomework, setActiveHomework] = useState<Homework | null>(null);
-  const [activeNotice, setActiveNotice] = useState<Notice | null>(null);
   const [noticesOpen, setNoticesOpen] = useState(false);
-  const dismissedRef = useRef<Set<string>>(new Set());
+  const dismissedRef = useRef<Set<string>>(loadDismissed());
   const [, forceRender] = useState(0);
 
   useEffect(() => {
@@ -113,8 +113,6 @@ function StudentTablet() {
     try {
       const data = await fetchSession({ data: { device_token: t } });
       setSession(data as StudentSession);
-      const fresh = (data.notices ?? []).find((n: Notice) => !dismissedRef.current.has(n.id));
-      if (fresh && !activeNotice) setActiveNotice(fresh);
     } catch (e) {
       const msg = (e as Error).message;
       setErr(msg);
