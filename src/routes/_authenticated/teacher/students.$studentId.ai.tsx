@@ -220,3 +220,58 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </div>
   );
 }
+
+function TodaysGoalCard({ studentId }: { studentId: string }) {
+  const setGoal = useServerFn(teacherSetGoal);
+  const [title, setTitle] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!title.trim()) return;
+    setSaving(true);
+    setErr(null);
+    setSaved(false);
+    try {
+      await setGoal({ data: { student_id: studentId, title: title.trim() } });
+      setSaved(true);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form
+      onSubmit={submit}
+      className="mb-6 rounded-xl border border-border bg-card p-4"
+    >
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        Today's goal override
+      </div>
+      <div className="mt-1 mb-2 text-sm text-muted-foreground">
+        Set a specific goal for this student today. Overrides the auto-generated goal.
+      </div>
+      <div className="flex gap-2">
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="e.g. Finish 5 fraction problems"
+          className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+        />
+        <button
+          type="submit"
+          disabled={saving || !title.trim()}
+          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+        >
+          {saving ? "Saving…" : "Save"}
+        </button>
+      </div>
+      {saved && <p className="mt-2 text-xs text-emerald-600">Saved — student will see it on their next refresh.</p>}
+      {err && <p className="mt-2 text-xs text-destructive">{err}</p>}
+    </form>
+  );
+}
