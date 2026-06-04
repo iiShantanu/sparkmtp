@@ -20,6 +20,45 @@ export async function getConversationToken(agentId: string): Promise<string> {
   return json.token;
 }
 
+// Ensure the agent allows per-session overrides for prompt, first_message, and language.
+// Idempotent; safe to call on every voice start. Returns true if overrides should be
+// passed to startSession, false if the PATCH failed and we should connect without overrides.
+let overridesEnabledCache: { agentId: string; ok: boolean; at: number } | null = null;
+export async function ensureAgentOverridesEnabled(agentId: string): Promise<boolean> {
+  // Cache for 10 minutes per process to avoid PATCH on every Start.
+  if (
+    overridesEnabledCache &&
+    overridesEnabledCache.agentId === agentId &&
+    Date.now() - overridesEnabledCache.at < 10 * 60_000
+  ) {
+    return overridesEnabledCache.ok;
+  }
+  try {
+    const res = await fetch(`${API}/convai/agents/${encodeURIComponent(agentId)}`, {
+      method: "PATCH",
+      headers: { "xi-api-key": key(), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        conversation_config: {
+          agent: {
+            overrides: {
+              prompt: { prompt: true },
+              first_message: true,
+              language: true,
+            },
+          },
+        },
+      }),
+    });
+    const ok = res.ok;
+    if (!ok) console.warn("ElevenLabs agent PATCH (overrides) failed:", res.status, await res.text());
+    overridesEnabledCache = { agentId, ok, at: Date.now() };
+    return ok;
+  } catch (e) {
+    console.warn("ElevenLabs agent PATCH threw:", (e as Error).message);
+    return false;
+  }
+}
+
 export async function tts(text: string, voiceId: string): Promise<string> {
   const res = await fetch(
     `${API}/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
