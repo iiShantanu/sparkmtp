@@ -264,11 +264,13 @@ function StudentTablet() {
 
 function Home({
   session,
+  online,
   onTalk,
   onHomework,
   onTool,
 }: {
   session: StudentSession;
+  online: boolean;
   onTalk: () => void;
   onHomework: (h: Homework) => void;
   onTool: (t: "music" | "pomodoro" | "wifi" | "bt") => void;
@@ -277,13 +279,16 @@ function Home({
     <div className="space-y-6">
       <button
         onClick={onTalk}
-        className="group flex w-full items-center gap-6 rounded-2xl bg-gradient-to-br from-primary to-primary/70 p-6 text-left text-primary-foreground shadow-sm hover:from-primary/90"
+        disabled={!online}
+        className="group flex w-full items-center gap-6 rounded-2xl bg-gradient-to-br from-primary to-primary/70 p-6 text-left text-primary-foreground shadow-sm hover:from-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
       >
         <SparkAvatar emotion="friendly" size={110} showLabel={false} />
         <div className="flex-1">
           <div className="text-lg font-semibold">Talk to Spark</div>
           <div className="text-sm opacity-90">
-            Ask anything. Spark will help you understand it step by step.
+            {online
+              ? "Ask anything. Spark will help you understand it step by step."
+              : "Spark needs Wi-Fi to talk. Reconnect to start a lesson."}
           </div>
         </div>
       </button>
