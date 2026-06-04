@@ -829,7 +829,7 @@ function VoiceModeInner({
           setWarning("Voice agent is not configured.");
           return;
         }
-        const overrides =
+        const overrides: { agent: Record<string, unknown> } | undefined =
           res.overridesEnabled && res.systemPrompt && res.firstMessage
             ? {
                 agent: {
@@ -842,7 +842,7 @@ function VoiceModeInner({
         conv.startSession({
           conversationToken: res.token,
           connectionType: "webrtc",
-          ...(overrides ? { overrides } : {}),
+          ...(overrides ? ({ overrides } as unknown as Record<string, unknown>) : {}),
         });
       } catch (e) {
         setWarning((e as Error).message || "Could not start voice");
