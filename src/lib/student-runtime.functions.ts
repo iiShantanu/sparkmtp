@@ -369,6 +369,135 @@ export const runSparkTextTurn = createServerFn({ method: "POST" })
     return { reply, emotion, audio_base64: audio };
   });
 
+export const runSparkVoiceTurn = createServerFn({ method: "POST" })
+  .inputValidator((i) =>
+    z
+      .object({
+        device_token: z.string().min(10),
+        text: z.string().max(2000).optional(),
+        audio_base64: z.string().max(8_000_000).optional(),
+        audio_mime: z.string().max(60).optional(),
+        homework_id: z.string().uuid().nullable().optional(),
+        initial: z.boolean().optional(),
+      })
+      .refine((v) => v.initial || !!v.text || !!v.audio_base64, "Provide text or audio")
+      .parse(i),
+  )
+  .handler(async ({ data }) => {
+    const { student_id } = await requireDevice(data.device_token);
+    let subjectId: string | null = null;
+    let homework: any = null;
+    if (data.homework_id) {
+      const { data: hw } = await supabaseAdmin
+        .from("homework")
+        .select("id, title, instructions, subject, subject_id, class_id")
+        .eq("id", data.homework_id)
+        .maybeSingle();
+      const { data: s } = await supabaseAdmin
+        .from("students")
+        .select("class_id")
+        .eq("id", student_id)
+        .single();
+      if (hw && (s as any)?.class_id === (hw as any).class_id) {
+        homework = hw;
+        subjectId = (hw as any).subject_id ?? null;
+      }
+    }
+
+    const userText = data.initial
+      ? homework
+        ? `Greet me and start homework mode for "${homework.title}". Ask me to read the first question or tell you where I am stuck.`
+        : "Greet me warmly as Spark and ask what I want to learn or solve today."
+      : data.text
+        ? data.text
+        : await sttBase64(data.audio_base64!, data.audio_mime || "audio/webm");
+
+    const cfg = await resolveConfigFor(student_id, subjectId);
+    const system = homework
+      ? buildSystemPrompt(cfg, {
+          homework_title: homework.title,
+          instructions: homework.instructions,
+        })
+      : buildSystemPrompt(cfg);
+    const { emotion, reply } = await generateSparkReply(system, userText);
+    let audio: string | null = null;
+    try {
+      if (process.env.ELEVENLABS_API_KEY) audio = await tts(reply, DEFAULT_VOICE);
+    } catch (e) {
+      console.warn("TTS failed (non-fatal):", (e as Error).message);
+    }
+
+    if (!data.initial) {
+      await supabaseAdmin.from("interaction_logs").insert({
+        student_id,
+        subject: homework?.subject ?? null,
+        homework_id: homework?.id ?? null,
+        question: userText,
+        ai_response: reply,
+        transcript: userText,
+      });
+      updateLearningProfile({
+        student_id,
+        exchange: `student: ${userText}\nspark: ${reply}`,
+        prev: await getLearningProfile(student_id),
+      }).catch(() => {});
+    }
+
+    return { transcript: data.initial ? "" : userText, reply, emotion, audio_base64: audio };
+  });
+
+export const runQuizVoiceTurn = createServerFn({ method: "POST" })
+  .inputValidator((i) =>
+    z
+      .object({
+        device_token: z.string().min(10),
+        quiz_id: z.string().uuid(),
+        topic: z.string().max(100),
+        turn_index: z.number().int().min(0).max(5),
+        transcript_so_far: z.string().max(30_000).optional(),
+        text: z.string().max(2000).optional(),
+        audio_base64: z.string().max(8_000_000).optional(),
+        audio_mime: z.string().max(60).optional(),
+      })
+      .refine((v) => v.turn_index === 0 || !!v.text || !!v.audio_base64, "Provide text or audio")
+      .parse(i),
+  )
+  .handler(async ({ data }) => {
+    const { student_id } = await requireDevice(data.device_token);
+    const { data: quiz } = await supabaseAdmin
+      .from("quiz_attempts")
+      .select("id, student_id")
+      .eq("id", data.quiz_id)
+      .eq("student_id", student_id)
+      .maybeSingle();
+    if (!quiz) throw new Error("Quiz not found");
+
+    const userText =
+      data.turn_index === 0
+        ? "Start the quiz now."
+        : data.text
+          ? data.text
+          : await sttBase64(data.audio_base64!, data.audio_mime || "audio/webm");
+    const system = [
+      `You are Spark running an oral quiz for a student.`,
+      `Topic focus: ${data.topic || "general"}.`,
+      `Ask exactly 5 short questions, one at a time.`,
+      data.turn_index === 0
+        ? `Start with question 1 only. Do not ask for confirmation first.`
+        : `The student just answered question ${data.turn_index}. Give a one-sentence judgement using exactly one of: correct, partially correct, incorrect. Then ${data.turn_index < 5 ? `ask question ${data.turn_index + 1}` : `give the final score out of 5 and say the quiz is finished`}.`,
+      `Previous transcript:\n${data.transcript_so_far || "(none)"}`,
+      `Begin every reply with one emotion tag like [emotion:happy]. Do not read the tag aloud.`,
+    ].join("\n");
+    const { emotion, reply } = await generateSparkReply(system, userText);
+    let audio: string | null = null;
+    try {
+      if (process.env.ELEVENLABS_API_KEY) audio = await tts(reply, DEFAULT_VOICE);
+    } catch (e) {
+      console.warn("Quiz TTS failed (non-fatal):", (e as Error).message);
+    }
+    return { transcript: data.turn_index === 0 ? "" : userText, reply, emotion, audio_base64: audio };
+  });
+
 // Homework drill turn: STT (optional) → Lovable AI → TTS
 export const runHomeworkTurn = createServerFn({ method: "POST" })
   .inputValidator((i) =>

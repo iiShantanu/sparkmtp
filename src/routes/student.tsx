@@ -1,6 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { ConversationProvider, useConversation } from "@elevenlabs/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bell,
@@ -23,8 +22,9 @@ import {
 import {
   getStudentSession,
   runHomeworkTurn,
+  runQuizVoiceTurn,
+  runSparkVoiceTurn,
   runSparkTextTurn,
-  startVoiceConversation,
   ackNotice,
   summarizeVoiceSession,
 } from "@/lib/student-runtime.functions";
@@ -103,12 +103,6 @@ type Streak = {
   current_streak: number;
   longest_streak: number;
   last_active_date: string | null;
-};
-
-type VoiceMessage = {
-  type?: string;
-  user_transcription_event?: { user_transcript?: string };
-  agent_response_event?: { agent_response?: string };
 };
 
 type Overlay = null | "voice" | "chat" | "quiz" | "messages";
@@ -314,7 +308,8 @@ function StudentTablet() {
               // auto-start inside VoiceMode doesn't need a second tap.
               try {
                 if (typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
-                  await navigator.mediaDevices.getUserMedia({ audio: true });
+                  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                  stream.getTracks().forEach((track) => track.stop());
                 }
               } catch {
                 // Continue anyway — VoiceMode will surface the error.
@@ -594,6 +589,71 @@ function HomeworkPickerBar({
   );
 }
 
+type RecorderState = { recorder: MediaRecorder; stream: MediaStream; chunks: Blob[] };
+type RecordedAudio = { base64: string; mime: string };
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(String(reader.result || "").split(",")[1] || "");
+    reader.onerror = () => reject(reader.error ?? new Error("Could not read recording"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function speakWithBrowser(text: string): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return resolve();
+    const utterance = new SpeechSynthesisUtterance(text.replace(/^\s*\[emotion:[a-z]+\]\s*/i, ""));
+    utterance.rate = 0.96;
+    utterance.pitch = 1.05;
+    utterance.onend = () => resolve();
+    utterance.onerror = () => resolve();
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  });
+}
+
+async function playSparkAudio(audioBase64: string | null | undefined, text: string) {
+  if (audioBase64) {
+    const audio = new Audio(`data:audio/mpeg;base64,${audioBase64}`);
+    const played = await new Promise<boolean>((resolve) => {
+      audio.onended = () => resolve(true);
+      audio.onerror = () => resolve(false);
+      audio.play().catch(() => resolve(false));
+    });
+    if (played) return;
+  }
+  await speakWithBrowser(text);
+}
+
+async function startBrowserRecording(ref: React.MutableRefObject<RecorderState | null>) {
+  if (typeof MediaRecorder === "undefined") throw new Error("Voice recording is not supported in this browser.");
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+  const recorder = new MediaRecorder(stream);
+  const chunks: Blob[] = [];
+  recorder.ondataavailable = (event) => {
+    if (event.data.size > 0) chunks.push(event.data);
+  };
+  ref.current = { recorder, stream, chunks };
+  recorder.start();
+}
+
+async function stopBrowserRecording(ref: React.MutableRefObject<RecorderState | null>): Promise<RecordedAudio> {
+  const current = ref.current;
+  if (!current) throw new Error("No recording is active.");
+  const { recorder, stream, chunks } = current;
+  const stopped = new Promise<void>((resolve) => {
+    recorder.onstop = () => resolve();
+  });
+  recorder.stop();
+  await stopped;
+  stream.getTracks().forEach((track) => track.stop());
+  ref.current = null;
+  const mime = recorder.mimeType || "audio/webm";
+  return { base64: await blobToBase64(new Blob(chunks, { type: mime })), mime };
+}
+
 function ToolTile({
   icon,
   label,
@@ -691,38 +751,6 @@ function SmartReminders({
 function VoiceMode({
   token,
   autoStart,
-  onClose,
-  homeworkOptions,
-  activeHomework,
-  onPickHomework,
-  onMarkHomeworkDone,
-}: {
-  token: string;
-  autoStart?: boolean;
-  onClose: () => void;
-  homeworkOptions: Homework[];
-  activeHomework: Homework | null;
-  onPickHomework: (h: Homework | null) => void;
-  onMarkHomeworkDone: () => void | Promise<void>;
-}) {
-  return (
-    <ConversationProvider>
-      <VoiceModeContent
-        token={token}
-        autoStart={autoStart}
-        onClose={onClose}
-        homeworkOptions={homeworkOptions}
-        activeHomework={activeHomework}
-        onPickHomework={onPickHomework}
-        onMarkHomeworkDone={onMarkHomeworkDone}
-      />
-    </ConversationProvider>
-  );
-}
-
-function VoiceModeContent({
-  token,
-  autoStart,
   onClose: _onClose,
   homeworkOptions,
   activeHomework,
@@ -737,94 +765,64 @@ function VoiceModeContent({
   onPickHomework: (h: Homework | null) => void;
   onMarkHomeworkDone: () => void | Promise<void>;
 }) {
-  const start = useServerFn(startVoiceConversation);
-  const textTurn = useServerFn(runSparkTextTurn);
+  const voiceTurn = useServerFn(runSparkVoiceTurn);
   const summarize = useServerFn(summarizeVoiceSession);
-  const [status, setStatus] = useState<string>("Idle");
+  const recorderRef = useRef<RecorderState | null>(null);
+  const activeRef = useRef(true);
+  const [status, setStatus] = useState<string>(autoStart ? "Connecting to Spark…" : "Idle");
   const [warning, setWarning] = useState<string | null>(null);
   const [textInput, setTextInput] = useState("");
   const [textBusy, setTextBusy] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [transcript, setTranscript] = useState<Array<{ role: string; text: string }>>([]);
   const [agentEmotion, setAgentEmotion] = useState<SparkEmotion>("friendly");
   const transcriptRef = useRef<Array<{ role: string; text: string }>>([]);
   const startedRef = useRef(false);
 
-  const conversation = useConversation({
-    onConnect: () => setStatus("Connected"),
-    onDisconnect: () => {
-      setStatus("Idle");
-      const lines = transcriptRef.current.map((m) => `${m.role}: ${m.text}`).join("\n");
-      if (lines.trim().length > 0) {
-        summarize({ data: { device_token: token, transcript: lines } }).catch(() => {});
-      }
-      transcriptRef.current = [];
-    },
-    onError: (e: unknown) => setStatus(`Error: ${e instanceof Error ? e.message : String(e)}`),
-    onMessage: (message: unknown) => {
-      const m = message as VoiceMessage;
-      if (m?.type === "user_transcript") {
-        const text = m.user_transcription_event?.user_transcript ?? "";
-        transcriptRef.current.push({ role: "student", text });
-        setTranscript((t) => [...t, { role: "you", text }]);
-      }
-      if (m?.type === "agent_response") {
-        const raw = m.agent_response_event?.agent_response ?? "";
-        const match = raw.match(/^\s*\[emotion:([a-z]+)\]\s*/i);
-        if (match) setAgentEmotion(match[1].toLowerCase() as SparkEmotion);
-        const clean = raw.replace(/^\s*\[emotion:[a-z]+\]\s*/i, "");
-        transcriptRef.current.push({ role: "spark", text: clean });
-        setTranscript((t) => [...t, { role: "spark", text: clean }]);
-      }
-    },
-  });
+  const appendLine = useCallback((role: string, text: string) => {
+    if (!text.trim()) return;
+    transcriptRef.current.push({ role, text });
+    setTranscript((t) => [...t, { role: role === "student" ? "you" : role, text }]);
+  }, []);
+
+  const speakReply = useCallback(async (reply: string, emotion: SparkEmotion, audio?: string | null) => {
+    setAgentEmotion("speaking");
+    setStatus("Spark is speaking…");
+    await playSparkAudio(audio, reply);
+    if (!activeRef.current) return;
+    setAgentEmotion(emotion || "friendly");
+    setStatus("Listening… tap Done when you finish speaking");
+  }, []);
+
+  const startListening = useCallback(async () => {
+    await startBrowserRecording(recorderRef);
+    setRecording(true);
+    setStatus("Listening… tap Done when you finish speaking");
+  }, []);
 
   const begin = useCallback(async () => {
-    setStatus("Requesting microphone…");
+    setStatus("Connecting to Spark…");
     setWarning(null);
+    setBusy(true);
     try {
-      await navigator.mediaDevices.getUserMedia({ audio: true });
-      const res = await start({
-        data: {
-          device_token: token,
-          homework_id: activeHomework?.id ?? null,
-        },
+      const permission = await navigator.mediaDevices.getUserMedia({ audio: true });
+      permission.getTracks().forEach((track) => track.stop());
+      const res = await voiceTurn({
+        data: { device_token: token, homework_id: activeHomework?.id ?? null, initial: true },
       });
-      if (!res.token || !res.agentId) {
-        setWarning(res.warning ?? "Voice agent is not configured yet.");
-        setStatus("Idle");
-        return;
-      }
-      setStatus("Connecting…");
-      const payload: Record<string, unknown> = {
-        conversationToken: res.token,
-        connectionType: "webrtc",
-      };
-      if (res.systemPrompt || res.firstMessage || res.language) {
-        payload.overrides = {
-          agent: {
-            ...(res.systemPrompt ? { prompt: { prompt: res.systemPrompt } } : {}),
-            ...(res.firstMessage ? { firstMessage: res.firstMessage } : {}),
-            ...(res.language ? { language: res.language } : {}),
-          },
-        };
-      }
-      try {
-        await conversation.startSession(payload as any);
-      } catch (e) {
-        if (payload.overrides) {
-          console.warn("startSession with overrides failed, retrying plain:", (e as Error).message);
-          delete payload.overrides;
-          await conversation.startSession(payload as any);
-        } else {
-          throw e;
-        }
-      }
+      appendLine("spark", res.reply);
+      await speakReply(res.reply, (res.emotion as SparkEmotion) ?? "friendly", res.audio_base64);
+      if (activeRef.current) await startListening();
     } catch (e) {
       const msg = (e as Error).message || String(e);
       setStatus(`Error: ${msg}`);
       setWarning(`Could not start: ${msg}`);
+      setAgentEmotion("error");
+    } finally {
+      setBusy(false);
     }
-  }, [conversation, start, token, activeHomework]);
+  }, [activeHomework, appendLine, speakReply, startListening, token, voiceTurn]);
 
   useEffect(() => {
     if (autoStart && !startedRef.current) {
@@ -833,6 +831,52 @@ function VoiceModeContent({
     }
   }, [autoStart, begin]);
 
+  useEffect(() => {
+    return () => {
+      activeRef.current = false;
+      window.speechSynthesis?.cancel();
+      const current = recorderRef.current;
+      if (current) {
+        current.stream.getTracks().forEach((track) => track.stop());
+        recorderRef.current = null;
+      }
+      const lines = transcriptRef.current.map((m) => `${m.role}: ${m.text}`).join("\n");
+      if (lines.trim().length > 0) {
+        summarize({ data: { device_token: token, transcript: lines } }).catch(() => {});
+      }
+    };
+  }, [summarize, token]);
+
+  async function finishRecordingTurn() {
+    if (busy || !recording) return;
+    setBusy(true);
+    setRecording(false);
+    setWarning(null);
+    setAgentEmotion("thinking");
+    setStatus("Spark is thinking…");
+    try {
+      const audio = await stopBrowserRecording(recorderRef);
+      const res = await voiceTurn({
+        data: {
+          device_token: token,
+          homework_id: activeHomework?.id ?? null,
+          audio_base64: audio.base64,
+          audio_mime: audio.mime,
+        },
+      });
+      appendLine("student", res.transcript || "(voice answer)");
+      appendLine("spark", res.reply);
+      await speakReply(res.reply, (res.emotion as SparkEmotion) ?? "friendly", res.audio_base64);
+      if (activeRef.current) await startListening();
+    } catch (e) {
+      setAgentEmotion("error");
+      setStatus(`Error: ${(e as Error).message}`);
+      setWarning((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function sendTextTurn() {
     const text = textInput.trim();
     if (!text || textBusy) return;
@@ -840,9 +884,9 @@ function VoiceModeContent({
     setTextBusy(true);
     setWarning(null);
     setAgentEmotion("thinking");
-    setTranscript((t) => [...t, { role: "you", text }]);
+    appendLine("student", text);
     try {
-      const res = await textTurn({
+      const res = await voiceTurn({
         data: {
           device_token: token,
           text,
@@ -850,13 +894,8 @@ function VoiceModeContent({
         },
       });
       setAgentEmotion((res.emotion as SparkEmotion) ?? "friendly");
-      setTranscript((t) => [...t, { role: "spark", text: res.reply }]);
-      if (res.audio_base64) {
-        setAgentEmotion("speaking");
-        const audio = new Audio(`data:audio/mpeg;base64,${res.audio_base64}`);
-        audio.onended = () => setAgentEmotion((res.emotion as SparkEmotion) ?? "friendly");
-        audio.play().catch(() => setAgentEmotion((res.emotion as SparkEmotion) ?? "friendly"));
-      }
+      appendLine("spark", res.reply);
+      await speakReply(res.reply, (res.emotion as SparkEmotion) ?? "friendly", res.audio_base64);
     } catch (e) {
       setAgentEmotion("error");
       setWarning((e as Error).message);
@@ -865,18 +904,15 @@ function VoiceModeContent({
     }
   }
 
-  const connected = conversation.status === "connected";
-  const liveEmotion: SparkEmotion = textBusy
-    ? "thinking"
-    : !connected
-      ? "idle"
-      : conversation.isSpeaking
-        ? "speaking"
-        : status.startsWith("Error")
-          ? "error"
-          : agentEmotion === "friendly"
-            ? "listening"
-            : agentEmotion;
+  const liveEmotion: SparkEmotion = agentEmotion === "speaking"
+    ? "speaking"
+    : busy || textBusy
+      ? "thinking"
+      : recording
+      ? "listening"
+      : status.startsWith("Error")
+        ? "error"
+        : agentEmotion;
 
   return (
     <div className="space-y-4 p-4">
@@ -889,33 +925,26 @@ function VoiceModeContent({
       <div className="grid place-items-center rounded-2xl border border-border bg-background p-6 text-center">
         <SparkAvatar emotion={liveEmotion} size={180} />
         <div className="mt-4 text-lg font-semibold">
-          {connected
-            ? conversation.isSpeaking
-              ? "Spark is speaking…"
-              : "Listening…"
-            : status === "Idle"
-              ? autoStart
-                ? "Connecting to Spark…"
-                : "Tap Start to talk"
-              : status}
+          {status === "Idle" ? (autoStart ? "Connecting to Spark…" : "Tap Start to talk") : status}
         </div>
         {warning && <p className="mt-3 max-w-md text-sm text-amber-600">{warning}</p>}
         <div className="mt-4 flex gap-3">
-          {!connected ? (
-            (!autoStart || warning || status.startsWith("Error")) && (
-              <button
-                onClick={begin}
-                className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-              >
-                <Mic className="h-4 w-4" /> {warning || status.startsWith("Error") ? "Try again" : "Start"}
-              </button>
-            )
+          {recording ? (
+            <button
+              onClick={finishRecordingTurn}
+              disabled={busy}
+              className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
+              <MicOff className="h-4 w-4" /> Done speaking
+            </button>
           ) : (
             <button
-              onClick={() => conversation.endSession()}
-              className="inline-flex items-center gap-2 rounded-md border border-border px-5 py-2.5 text-sm hover:bg-accent"
+              onClick={begin}
+              disabled={busy}
+              className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
-              <MicOff className="h-4 w-4" /> End
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
+              {warning || status.startsWith("Error") ? "Try again" : "Talk again"}
             </button>
           )}
         </div>
@@ -1081,166 +1110,171 @@ function ChatMode({
 }
 
 // =====================================================================
-// Quiz mode — reuses ElevenLabs voice with a quiz-specific system prompt.
+// Quiz mode — stable voice turns: Spark speaks, student records, Spark responds.
 // =====================================================================
 function QuizMode({ token, onClose }: { token: string; onClose: () => void }) {
   const startQuiz = useServerFn(startQuizSession);
   const finish = useServerFn(finishQuiz);
-  const startVoice = useServerFn(startVoiceConversation);
+  const quizTurn = useServerFn(runQuizVoiceTurn);
+  const recorderRef = useRef<RecorderState | null>(null);
+  const activeRef = useRef(true);
   const [quizId, setQuizId] = useState<string | null>(null);
   const [topic, setTopic] = useState<string>("");
-  const [err, setErr] = useState<string | null>(null);
   const [started, setStarted] = useState(false);
-
-  return (
-    <ConversationProvider>
-      <QuizModeInner
-        token={token}
-        quizId={quizId}
-        topic={topic}
-        started={started}
-        err={err}
-        onStart={async () => {
-          setErr(null);
-          try {
-            const s = await startQuiz({ data: { device_token: token } });
-            setQuizId(s.quiz_id ?? null);
-            setTopic(s.topic);
-            setStarted(true);
-            return s;
-          } catch (e) {
-            setErr((e as Error).message);
-            return null;
-          }
-        }}
-        startVoice={async () => startVoice({ data: { device_token: token } })}
-        finishQuiz={async (score: number, total: number, transcript: string) => {
-          if (!quizId) return;
-          await finish({ data: { device_token: token, quiz_id: quizId, score, total, transcript } });
-        }}
-        onClose={onClose}
-      />
-    </ConversationProvider>
-  );
-}
-
-type QuizStartResult = { systemPrompt: string; firstMessage: string; topic: string } | null;
-type VoiceStartResult = Awaited<ReturnType<ReturnType<typeof useServerFn<typeof startVoiceConversation>>>>;
-
-function QuizModeInner({
-  token: _token,
-  quizId,
-  topic,
-  started,
-  err,
-  onStart,
-  startVoice,
-  finishQuiz,
-  onClose,
-}: {
-  token: string;
-  quizId: string | null;
-  topic: string;
-  started: boolean;
-  err: string | null;
-  onStart: () => Promise<QuizStartResult>;
-  startVoice: () => Promise<VoiceStartResult>;
-  finishQuiz: (score: number, total: number, transcript: string) => Promise<void>;
-  onClose: () => void;
-}) {
+  const [finished, setFinished] = useState(false);
   const [status, setStatus] = useState<string>("Idle");
   const [transcript, setTranscript] = useState<Array<{ role: string; text: string }>>([]);
   const transcriptRef = useRef<Array<{ role: string; text: string }>>([]);
   const [emotion, setEmotion] = useState<SparkEmotion>("friendly");
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [questionNo, setQuestionNo] = useState(1);
 
-  const conversation = useConversation({
-    onConnect: () => setStatus("Quiz in progress…"),
-    onDisconnect: () => {
-      setStatus("Quiz ended");
+  const appendLine = useCallback((role: string, text: string) => {
+    if (!text.trim()) return;
+    transcriptRef.current.push({ role, text });
+    setTranscript((t) => [...t, { role: role === "student" ? "you" : role, text }]);
+  }, []);
+
+  const finishAttempt = useCallback(
+    async (id: string) => {
       const text = transcriptRef.current.map((m) => `${m.role}: ${m.text}`).join("\n");
-      // crude scoring: count "correct" mentions in spark replies (max total).
       const sparkLines = transcriptRef.current.filter((m) => m.role === "spark").map((m) => m.text.toLowerCase());
       const correct = sparkLines.filter((l) => /\bcorrect\b/.test(l) && !/incorrect|not correct/.test(l)).length;
-      finishQuiz(Math.min(correct, 5), 5, text).catch(() => {});
+      await finish({ data: { device_token: token, quiz_id: id, score: Math.min(correct, 5), total: 5, transcript: text } });
+      setFinished(true);
+      setRecording(false);
+      setStatus("Quiz finished");
     },
-    onError: (e: unknown) => setStatus(`Error: ${e instanceof Error ? e.message : String(e)}`),
-    onMessage: (message: unknown) => {
-      const m = message as VoiceMessage;
-      if (m?.type === "user_transcript") {
-        const text = m.user_transcription_event?.user_transcript ?? "";
-        transcriptRef.current.push({ role: "student", text });
-        setTranscript((t) => [...t, { role: "you", text }]);
+    [finish, token],
+  );
+
+  useEffect(() => {
+    return () => {
+      activeRef.current = false;
+      window.speechSynthesis?.cancel();
+      const current = recorderRef.current;
+      if (current) {
+        current.stream.getTracks().forEach((track) => track.stop());
+        recorderRef.current = null;
       }
-      if (m?.type === "agent_response") {
-        const raw = m.agent_response_event?.agent_response ?? "";
-        const match = raw.match(/^\s*\[emotion:([a-z]+)\]\s*/i);
-        if (match) setEmotion(match[1].toLowerCase() as SparkEmotion);
-        const clean = raw.replace(/^\s*\[emotion:[a-z]+\]\s*/i, "");
-        transcriptRef.current.push({ role: "spark", text: clean });
-        setTranscript((t) => [...t, { role: "spark", text: clean }]);
-      }
-    },
-  });
+    };
+  }, []);
 
   async function begin() {
     setStatus("Setting up quiz…");
+    setErr(null);
+    setBusy(true);
     try {
-      const s = await onStart();
-      if (!s) return;
-      const v = await startVoice();
-      if (!v.token || !v.agentId) {
-        setStatus(v.warning ?? "Voice agent not configured.");
-        return;
-      }
-      await navigator.mediaDevices.getUserMedia({ audio: true });
-      const payload: Record<string, unknown> = {
-        conversationToken: v.token,
-        connectionType: "webrtc",
-        overrides: {
-          agent: {
-            prompt: { prompt: s.systemPrompt },
-            firstMessage: s.firstMessage,
-            ...(v.language ? { language: v.language } : {}),
-          },
-        },
-      };
-      try {
-        await conversation.startSession(payload as any);
-      } catch (e) {
-        console.warn("Quiz start with overrides failed, retrying plain:", (e as Error).message);
-        delete payload.overrides;
-        await conversation.startSession(payload as any);
-      }
+      const permission = await navigator.mediaDevices.getUserMedia({ audio: true });
+      permission.getTracks().forEach((track) => track.stop());
+      const s = await startQuiz({ data: { device_token: token } });
+      if (!s.quiz_id) throw new Error("Could not create quiz.");
+      setQuizId(s.quiz_id);
+      setTopic(s.topic);
+      setStarted(true);
+      setFinished(false);
+      setTranscript([]);
+      transcriptRef.current = [];
+      setQuestionNo(1);
+      const res = await quizTurn({
+        data: { device_token: token, quiz_id: s.quiz_id, topic: s.topic, turn_index: 0 },
+      });
+      appendLine("spark", res.reply);
+      setEmotion("speaking");
+      setStatus("Spark is asking question 1…");
+      await playSparkAudio(res.audio_base64, res.reply);
+      if (!activeRef.current) return;
+      await startBrowserRecording(recorderRef);
+      setRecording(true);
+      setEmotion("listening");
+      setStatus("Answer question 1, then tap Done answering");
     } catch (e) {
       setStatus(`Error: ${(e as Error).message}`);
+      setErr((e as Error).message);
+      setEmotion("error");
+    } finally {
+      setBusy(false);
     }
   }
 
-  const connected = conversation.status === "connected";
+  async function submitAnswer() {
+    if (!quizId || busy || !recording) return;
+    setBusy(true);
+    setRecording(false);
+    setEmotion("thinking");
+    setStatus("Spark is checking your answer…");
+    try {
+      const audio = await stopBrowserRecording(recorderRef);
+      const res = await quizTurn({
+        data: {
+          device_token: token,
+          quiz_id: quizId,
+          topic,
+          turn_index: questionNo,
+          transcript_so_far: transcriptRef.current.map((m) => `${m.role}: ${m.text}`).join("\n"),
+          audio_base64: audio.base64,
+          audio_mime: audio.mime,
+        },
+      });
+      appendLine("student", res.transcript || "(voice answer)");
+      appendLine("spark", res.reply);
+      setEmotion("speaking");
+      await playSparkAudio(res.audio_base64, res.reply);
+      if (!activeRef.current) return;
+      if (questionNo >= 5) {
+        await finishAttempt(quizId);
+      } else {
+        const next = questionNo + 1;
+        setQuestionNo(next);
+        await startBrowserRecording(recorderRef);
+        setRecording(true);
+        setEmotion("listening");
+        setStatus(`Answer question ${next}, then tap Done answering`);
+      }
+    } catch (e) {
+      setErr((e as Error).message);
+      setStatus(`Error: ${(e as Error).message}`);
+      setEmotion("error");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <div className="space-y-4 p-4">
       <div className="grid place-items-center rounded-2xl border border-border bg-background p-6 text-center">
-        <SparkAvatar emotion={connected ? (conversation.isSpeaking ? "speaking" : emotion) : "idle"} size={180} />
+        <SparkAvatar
+          emotion={emotion === "speaking" ? "speaking" : busy ? "thinking" : recording ? "listening" : finished ? "happy" : emotion}
+          size={180}
+        />
         <div className="mt-3 text-sm font-semibold">
           {started ? `Quiz topic: ${topic}` : "Ready for a quick 5-question quiz?"}
         </div>
         <div className="mt-1 text-xs text-muted-foreground">{status}</div>
         {err && <p className="mt-2 text-xs text-destructive">{err}</p>}
         <div className="mt-4 flex gap-3">
-          {!connected ? (
+          {recording ? (
+            <button
+              onClick={submitAnswer}
+              disabled={busy}
+              className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
+              <MicOff className="h-4 w-4" /> Done answering
+            </button>
+          ) : !finished ? (
             <button
               onClick={begin}
-              className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              disabled={busy}
+              className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
-              <Brain className="h-4 w-4" /> Start quiz
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Brain className="h-4 w-4" />}
+              {started ? "Restart quiz" : "Start quiz"}
             </button>
           ) : (
-            <button
-              onClick={() => conversation.endSession()}
-              className="inline-flex items-center gap-2 rounded-md border border-border px-5 py-2.5 text-sm hover:bg-accent"
-            >
-              End quiz
+            <button onClick={begin} className="inline-flex items-center gap-2 rounded-md border border-border px-5 py-2.5 text-sm hover:bg-accent">
+              <Brain className="h-4 w-4" /> New quiz
             </button>
           )}
         </div>
