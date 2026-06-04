@@ -1,156 +1,81 @@
+## Goal
 
-# Student page — Raspberry Pi kiosk plan
+Reshape the `/student` home into a single dashboard where Spark is reachable in one tap (voice or chat overlays — no page jump), and add the Tier 1 + selected Tier 2 features you picked.
 
-I'll split this into **what's fully possible in the browser**, **what needs a small helper service on the Pi**, and **what's not realistic**. Then I'll lay out the concrete changes.
+## 1. Home screen rework
 
----
-
-## 1. Feasibility — read this first
-
-| Feature | Verdict | How |
-|---|---|---|
-| Fix "Start" disconnecting silently | Possible | Debug ElevenLabs override / agent config |
-| Stop repeating notice popup | Possible | Persist dismissals in `localStorage`, not in-memory |
-| Talk-to-AI button on first screen | Possible | Already there — make it the dominant action |
-| Clock | Possible | Pure JS |
-| Timer / Pomodoro / Stopwatch | Possible | Pure JS + localStorage |
-| Store & play music | Possible | Files saved in **IndexedDB** on the device; HTML `<audio>` plays them. No server. |
-| Offline interface (UI loads with no Wi-Fi, AI disabled) | Possible | Service worker + cache + IndexedDB |
-| **Wi-Fi scan / connect from the page** | **Not possible from a normal browser.** No Web API exists for Wi-Fi. | Requires a tiny helper service on the Pi (Python/Node) that runs `nmcli` and exposes `http://127.0.0.1:8765`. The page calls localhost. |
-| **Bluetooth pairing** | **Partially possible.** Web Bluetooth can connect to *specific* BLE devices but **cannot do system-wide pairing** (no classic audio, no "pair my speaker"). | Real pairing also needs the helper service calling `bluetoothctl`. |
-| Kiosk mode (page opens on boot, nothing else accessible) | Possible | OS-level config on the Pi (Chromium `--kiosk`, autostart, disable cursor/keys). I can provide the scripts but they install on the Pi, not in this repo. |
-| True PWA install / offline cache on Pi Chromium | Possible | Add manifest + service worker |
-
-**Bottom line:** Wi-Fi and Bluetooth from a web page need a **small companion process running on the Raspberry Pi**. I'll design the web UI assuming that helper exists at `http://127.0.0.1:8765`, and I'll provide the helper as a small Python script + systemd unit you install once on the Pi. If the helper isn't running (e.g. development on your laptop), those panels show "Hardware controls unavailable on this device."
-
----
-
-## 2. Bug fixes (do first)
-
-### 2a. Voice Start disconnects immediately
-Most likely causes given the recent overrides change:
-- ElevenLabs agent rejected the override payload (`prompt`/`firstMessage`/`language` not enabled, or `prompt` shape wrong)
-- Token expired / wrong agent ID
-- `conversation.startSession` throws and `onDisconnect` fires before `onError` is surfaced
-
-Plan: add visible error capture (show `onError` message in UI), log the override payload, re-verify the agent's `conversation_config.agent.overrides` allow-list via the ElevenLabs API, and fall back to **no overrides** if the patch returns 4xx so the user always gets *some* conversation.
-
-### 2b. Repeating notice popup
-Currently dismissals live in a `useRef<Set>` that resets on remount, and the 30s `refresh()` re-opens the first unacknowledged notice. Fix:
-- Persist dismissed IDs in `localStorage` (`spark_dismissed_notices`)
-- Only auto-open a notice if it arrived **after** the last dismissal timestamp
-- Never auto-open while the panel is open or voice/homework view is active
-
----
-
-## 3. New home layout (kiosk-first)
-
-Reorganise `/student` into a single dashboard the student lands on:
+Replace the single big "Talk to Spark" tile with a header strip that always shows today's avatar + daily goal, and two equal CTAs underneath:
 
 ```text
-┌──────────────────────────────────────────────────────┐
-│ Hi, {name}    🕘 14:32   🔔(2)  📶 Wi-Fi  🔵 BT      │
-├──────────────────────────────────────────────────────┤
-│  ┌──────────────────┐   ┌────────────────────────┐   │
-│  │  TALK TO SPARK   │   │  Today's homework      │   │
-│  │  (big avatar)    │   │  • Fractions           │   │
-│  │  [ Start ]       │   │  • Reading             │   │
-│  └──────────────────┘   └────────────────────────┘   │
-│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐    │
-│  │ Music   │ │ Pomodoro│ │ Clock   │ │ Settings│    │
-│  └─────────┘ └─────────┘ └─────────┘ └─────────┘    │
-└──────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────┐
+│  🟣 Spark      Today's goal:                │
+│                "Finish 5 fraction problems" │
+├──────────────────────┬──────────────────────┤
+│  🎙 Talk to Spark    │  💬 Chat with Spark  │
+└──────────────────────┴──────────────────────┘
+[ Reminders strip — homework due, exam tomorrow, revision ]
+[ Streak: 🔥 5 days ]            [ Daily goal progress bar ]
+[ Today's homework cards ]
+[ Tools row: Music · Pomodoro · Timer · Wi-Fi · Bluetooth ]
 ```
 
-- **Talk to Spark** stays the primary CTA.
-- Header gets: clock, notice bell (opens panel — never auto-opens), Wi-Fi indicator, Bluetooth indicator.
-- New tiles: Music, Pomodoro/Timer, Settings (Wi-Fi/Bluetooth live here).
-- All other routes (`/login`, `/admin`, `/teacher`, etc.) remain in the codebase but the Pi's kiosk Chromium only opens `/student` — students literally can't navigate elsewhere.
+Both Spark buttons open **modal overlays** on top of home — no `setView("voice"/"homework")` navigation. Closing the overlay returns to the same dashboard with state intact.
 
----
+- **Talk overlay**: identical to today's `VoiceMode`, but `begin()` runs automatically on mount so Spark starts speaking the moment the modal opens (after the one-time mic permission).
+- **Chat overlay**: text-only conversation using the same `runSparkTextTurn` server function that already exists, rendered with AI Elements (`Conversation`, `Message`, `MessageResponse`, `PromptInput`) and react-markdown. No new AI route needed.
 
-## 4. New features
+Homework cards still open the existing `HomeworkMode` (kept as an overlay too, for consistency).
 
-### Clock
-Always visible in header. 12/24h toggle in settings, persisted locally.
+## 2. Tier 1 features
 
-### Pomodoro / Timer / Stopwatch
-- Modal opened from tile. Three tabs.
-- State persists across reloads via `localStorage`.
-- Optional chime sound (bundled audio file).
+### 🔔 Smart Reminders
+Compute on the client from data the dashboard already loads:
+- Homework `due_at` within next 24 h → "Due today".
+- Notices of kind `exam` starting within 48 h → "Exam tomorrow".
+- Topics from `student_learning_profile.weak_topics` not practised in the last 3 days → "Revise X".
 
-### Music player
-- "Add music" button opens file picker (`<input type="file" accept="audio/*" multiple>`).
-- Files stored as `Blob` in **IndexedDB** (`spark_music` store).
-- Player with play/pause/next/prev/volume, current track displayed.
-- Works fully offline. No upload, no cloud, no auth.
+Rendered as a horizontal chip strip above the homework list, colour-coded (amber/red/blue). Tapping a chip either opens the relevant homework overlay or pre-fills the chat overlay with "Help me revise X".
 
-### Wi-Fi panel (Settings → Wi-Fi)
-- Calls `GET http://127.0.0.1:8765/wifi/scan` → list of SSIDs + signal.
-- "Connect" prompts for password, calls `POST /wifi/connect`.
-- Shows current SSID and IP.
-- If helper unreachable: "Wi-Fi controls require the Spark device service. Not available in browser preview."
+### 🎯 Daily Learning Goal (hybrid)
+New table `daily_goals(student_id, goal_date, title, source, completed_at, set_by_user_id)`. Server function `getOrCreateTodayGoal(device_token)`:
+1. If a teacher-set row exists for today → return it.
+2. Else if none exists, generate one from due homework + weakest topic, insert with `source = 'auto'`, return it.
 
-### Bluetooth panel (Settings → Bluetooth)
-- `GET /bt/scan`, `POST /bt/pair`, `POST /bt/connect`, `POST /bt/disconnect`.
-- Useful for pairing a speaker/headphones for the AI voice and music.
-- Same fallback message if helper is missing.
+Student tap "Mark done" → updates `completed_at` and ticks the streak counter. Teacher gets a small control on their existing student page to override today's goal (`source = 'teacher'`).
 
-### Offline mode
-- Service worker caches the app shell, fonts, icons, the SPA bundle.
-- IndexedDB holds: dismissed notices, music library, Pomodoro state, last-known student session snapshot, queued voice transcripts to summarise once online.
-- When offline: AI tiles show "Offline — reconnect to talk with Spark", everything else (clock, music, timer, viewing cached homework text) keeps working.
-- Online detection via `navigator.onLine` + ping to the backend every 30s.
+### 🧠 Quiz Mode (oral)
+A third Spark intent. Add a "Quiz me" entry inside the Talk overlay's footer and a tile under Tools. It calls a new server fn `startQuizSession({ device_token, subject? })` which builds a system prompt instructing Spark to: pick 5 questions from the student's weak topics + recent homework, ask one at a time, wait for the spoken answer, score it, and produce a recap.
 
----
+The session reuses the existing ElevenLabs voice plumbing; quiz attempts are stored in `quiz_attempts(student_id, started_at, ended_at, topic, score, total, transcript)` so teachers can review later.
 
-## 5. Raspberry Pi side (delivered as docs + scripts, not app code)
+## 3. Tier 2 features
 
-I'll add a `raspberry-pi/` folder in the repo with:
+### 🎵 Focus Music — built-in curated library
+Ship a small set of royalty-free tracks under `public/music/{lofi,instrumental,nature}/*.mp3` (5–6 tracks per category, ~3–4 MB each). Replace the empty-library state in `MusicPlayer` with tabs: `Curated · My uploads`. Curated tab lists the bundled tracks grouped by category; "My uploads" keeps the existing IndexedDB picker.
 
-1. `spark-device-service.py` — Flask app on `127.0.0.1:8765`:
-   - `/wifi/scan|connect|status` → wraps `nmcli`
-   - `/bt/scan|pair|connect|disconnect|status` → wraps `bluetoothctl`
-   - CORS locked to `http://localhost` + the published Lovable domain
-2. `spark-device.service` — systemd unit, auto-start on boot
-3. `kiosk-autostart.sh` — launches Chromium in `--kiosk --app=https://<your-app>/student --noerrdialogs --disable-pinch --overscroll-history-navigation=0`
-4. `setup.sh` — installs deps (`network-manager`, `bluez`, `chromium-browser`, `unclutter`), enables the service, configures autologin to the kiosk session
-5. `README.md` — flash → boot → run `setup.sh` → done
+Spark gets a client tool `playFocusMusic({ category })` so the student can say "play some lo-fi" and the player opens to that category and starts the first track.
 
-You run `setup.sh` once on the Pi. After that, power-on lands directly in the student page, full screen, no address bar, no other apps reachable.
+### ⏱ Pomodoro polish
+Keep the current 3-tab modal but:
+- When a Pomodoro segment ends, fire a short Spark voice line via the existing TTS server fn ("Nice work — take a 5-minute break"), instead of the placeholder beep.
+- Persist active timer state in `localStorage` so the timer keeps ticking if the student navigates away or the kiosk reloads.
 
----
+### ⏰ Study Timer
+Add a fourth tab to the Pomodoro modal called "Session". Presets: Reading Practice / Homework Session / Revision Session, with editable minutes. On completion, log a row to `study_sessions(student_id, kind, planned_minutes, actual_minutes, ended_at)` for streak/teacher reporting.
 
-## 6. Files I'll touch (technical section)
+### 🏆 Learning Streaks
+New table `learning_streaks(student_id, current_streak, longest_streak, last_active_date)`. A day counts as "active" if the student either marked the daily goal done, finished a homework session, or completed a Pomodoro segment that day. Server fn `bumpStreakIfNeeded()` runs at the end of each of those actions. Streak chip shown on the dashboard with a flame icon and number.
 
-**Edit**
-- `src/routes/student.tsx` — new dashboard layout, header clock/indicators, remove notice auto-popup, hand off to new components
-- `src/lib/student-runtime.functions.ts` — better error surfacing for voice start, allow voice start without overrides as fallback
-- `src/lib/spark-context.server.ts` — return a flag when overrides PATCH failed so client knows to skip them
-- `vite.config.ts` — register `vite-plugin-pwa` with the guarded wrapper described in the PWA skill
+## 4. Skipped this round
 
-**Create**
-- `src/components/student/header-bar.tsx` (clock, bell, wifi/bt indicators)
-- `src/components/student/music-player.tsx` + `src/lib/music-store.ts` (IndexedDB)
-- `src/components/student/pomodoro.tsx`
-- `src/components/student/wifi-panel.tsx` + `src/components/student/bluetooth-panel.tsx`
-- `src/lib/device-bridge.ts` — typed client for `http://127.0.0.1:8765`
-- `src/lib/offline-store.ts` — IndexedDB wrapper (dismissed notices, cached session, queued transcripts)
-- `src/pwa-register.ts` — guarded SW registration (kiosk-only, never in Lovable preview)
-- `raspberry-pi/` folder with service, systemd unit, kiosk autostart, README
+Per your scope choice: Read Aloud Mode, Weather, Calculator, School Schedule, Birthday Wishes. Easy follow-ups later.
 
-**Not changed**
-- Admin / teacher / parent routes
-- Auth, DB schema, RLS
-- ElevenLabs agent config beyond verifying overrides
+## Technical notes
 
----
-
-## 7. What I want confirmed before building
-
-1. **Helper service language: Python (Flask) or Node?** Python is lighter on Pi and matches `nmcli`/`bluetoothctl` examples best — that's my recommendation.
-2. **Music storage cap** — fine to leave it unbounded (IndexedDB will use whatever the Pi's SD card allows), or cap at, say, 500 MB with a "manage library" screen?
-3. **Kiosk URL** — point the Pi at the published URL (`https://bloom-classroom-hub.lovable.app/student`) so updates push automatically, correct?
-4. **Offline AI** — confirm you only want the *UI* offline; we will NOT bundle a local LLM. AI features simply show "offline" when there's no internet.
-
-Once you confirm, I'll switch to build mode and implement in this order: bug fixes → new home layout + clock/pomodoro/music → offline/PWA → Wi-Fi/Bluetooth panels + Pi helper service + kiosk scripts.
+- **No new pages**: everything lives inside `/student`. Voice / Chat / Homework / Quiz are all modal overlays rendered above `Home`. The `view` state becomes `null | "voice" | "chat" | "homework" | "quiz"`.
+- **Chat overlay** uses the AI Elements primitives already recommended (`bun x ai-elements@latest add conversation message prompt-input shimmer`) and `react-markdown` for assistant replies. Streaming is optional v1 — first cut can call the existing `runSparkTextTurn` server fn per turn and render the reply.
+- **New tables**: `daily_goals`, `quiz_attempts`, `study_sessions`, `learning_streaks`. All scoped by `student_id`, RLS off (device-token gated via server fns using `supabaseAdmin`, mirroring the current pattern in `student-runtime.functions.ts`).
+- **Teacher side**: minimal additions — a "Today's goal" override input on the existing student detail page, a read-only quiz/session/streak summary card. No new teacher routes.
+- **Music assets**: bundled under `public/`, total budget ~60 MB. Cached by the PWA service worker on first visit so they play offline.
+- **Offline behaviour**: Music, Pomodoro, Timer, Clock, Streak display all work offline; Talk/Chat/Quiz/Goal-fetch require network and stay gated by the existing `useOnline` hook.
+- **Spark client tools** added to the ElevenLabs agent config: `playFocusMusic`, `startPomodoro`, `openHomework`, `markGoalDone`. These let the student trigger UI by voice.
