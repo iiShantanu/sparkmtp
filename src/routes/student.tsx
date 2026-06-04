@@ -35,6 +35,7 @@ import {
   getStreak,
   startQuizSession,
   finishQuiz,
+  markHomeworkDone,
 } from "@/lib/student-extras.functions";
 import { deviceHeartbeat } from "@/lib/device.functions";
 import { SparkAvatar, type SparkEmotion } from "@/components/spark-avatar";
@@ -110,7 +111,7 @@ type VoiceMessage = {
   agent_response_event?: { agent_response?: string };
 };
 
-type Overlay = null | "voice" | "chat" | "homework" | "quiz";
+type Overlay = null | "voice" | "chat" | "quiz";
 type Tool = null | "music" | "pomodoro" | "wifi" | "bt";
 
 function StudentTablet() {
@@ -123,6 +124,7 @@ function StudentTablet() {
   const fetchGoal = useServerFn(getOrCreateTodayGoal);
   const completeGoal = useServerFn(markGoalDone);
   const fetchStreak = useServerFn(getStreak);
+  const completeHomework = useServerFn(markHomeworkDone);
 
   const [session, setSession] = useState<StudentSession | null>(null);
   const [goal, setGoal] = useState<DailyGoal | null>(null);
@@ -344,7 +346,7 @@ function StudentTablet() {
           }}
           onOpenHomework={(h) => {
             setActiveHomework(h);
-            setOverlay("homework");
+            setOverlay("voice");
           }}
         />
 
@@ -378,7 +380,7 @@ function StudentTablet() {
                   <button
                     onClick={() => {
                       setActiveHomework(h);
-                      setOverlay("homework");
+                      setOverlay("voice");
                     }}
                     className="w-full rounded-xl border border-border bg-card p-4 text-left transition hover:border-primary"
                   >
@@ -401,18 +403,67 @@ function StudentTablet() {
 
       {/* Overlays */}
       {overlay === "voice" && (
-        <OverlayShell title="Talk to Spark" onClose={() => setOverlay(null)}>
-          <VoiceMode token={token} autoStart onClose={() => setOverlay(null)} />
+        <OverlayShell
+          title={activeHomework ? `Homework · ${activeHomework.title}` : "Talk to Spark"}
+          onClose={() => {
+            setOverlay(null);
+            setActiveHomework(null);
+          }}
+        >
+          <VoiceMode
+            token={token}
+            autoStart
+            onClose={() => {
+              setOverlay(null);
+              setActiveHomework(null);
+            }}
+            homeworkOptions={session.homework}
+            activeHomework={activeHomework}
+            onPickHomework={setActiveHomework}
+            onMarkHomeworkDone={async () => {
+              if (!activeHomework) return;
+              try {
+                await completeHomework({
+                  data: { device_token: token!, homework_id: activeHomework.id },
+                });
+                const s = await fetchStreak({ data: { device_token: token! } });
+                setStreak(s as Streak);
+                setActiveHomework(null);
+              } catch (e) {
+                console.warn("mark homework done failed:", (e as Error).message);
+              }
+            }}
+          />
         </OverlayShell>
       )}
       {overlay === "chat" && (
-        <OverlayShell title="Chat with Spark" onClose={() => setOverlay(null)}>
-          <ChatMode token={token} seed={chatSeed} />
-        </OverlayShell>
-      )}
-      {overlay === "homework" && activeHomework && (
-        <OverlayShell title={activeHomework.title} onClose={() => setOverlay(null)}>
-          <HomeworkMode token={token} homework={activeHomework} />
+        <OverlayShell
+          title={activeHomework ? `Homework · ${activeHomework.title}` : "Chat with Spark"}
+          onClose={() => {
+            setOverlay(null);
+            setActiveHomework(null);
+          }}
+        >
+          <ChatMode
+            token={token}
+            seed={chatSeed}
+            homeworkOptions={session.homework}
+            activeHomework={activeHomework}
+            onPickHomework={setActiveHomework}
+            onMarkHomeworkDone={async () => {
+              if (!activeHomework) return;
+              try {
+                await completeHomework({
+                  data: { device_token: token!, homework_id: activeHomework.id },
+                });
+                const s = await fetchStreak({ data: { device_token: token! } });
+                setStreak(s as Streak);
+                setActiveHomework(null);
+              } catch (e) {
+                console.warn("mark homework done failed:", (e as Error).message);
+              }
+            }}
+          />
         </OverlayShell>
       )}
       {overlay === "quiz" && (
@@ -461,6 +512,68 @@ function OverlayShell({
         </div>
         <div className="flex-1 overflow-y-auto">{children}</div>
       </div>
+    </div>
+  );
+}
+
+function HomeworkPickerBar({
+  homeworkOptions,
+  activeHomework,
+  onPickHomework,
+  onMarkHomeworkDone,
+}: {
+  homeworkOptions: Homework[];
+  activeHomework: Homework | null;
+  onPickHomework: (h: Homework | null) => void;
+  onMarkHomeworkDone: () => void | Promise<void>;
+}) {
+  if (activeHomework) {
+    return (
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-primary/40 bg-primary/5 p-3 text-sm">
+        <BookOpen className="h-4 w-4 text-primary" />
+        <div className="min-w-0 flex-1">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-primary">
+            Homework Mode{activeHomework.subject ? ` · ${activeHomework.subject}` : ""}
+          </div>
+          <div className="truncate font-semibold">{activeHomework.title}</div>
+        </div>
+        <button
+          onClick={() => onMarkHomeworkDone()}
+          className="inline-flex items-center gap-1 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+        >
+          <CheckCircle2 className="h-3.5 w-3.5" /> Mark done
+        </button>
+        <button
+          onClick={() => onPickHomework(null)}
+          className="rounded-full border border-border px-3 py-1 text-xs hover:bg-accent"
+        >
+          Change
+        </button>
+      </div>
+    );
+  }
+  if (homeworkOptions.length === 0) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-background p-3 text-sm">
+      <BookOpen className="h-4 w-4 text-muted-foreground" />
+      <span className="text-xs text-muted-foreground">Work on homework:</span>
+      <select
+        defaultValue=""
+        onChange={(e) => {
+          const id = e.target.value;
+          const found = homeworkOptions.find((h) => h.id === id) ?? null;
+          if (found) onPickHomework(found);
+        }}
+        className="flex-1 min-w-[10rem] rounded-md border border-input bg-background px-2 py-1 text-sm"
+      >
+        <option value="">Pick an assignment…</option>
+        {homeworkOptions.map((h) => (
+          <option key={h.id} value={h.id}>
+            {h.subject ? `${h.subject} — ` : ""}
+            {h.title}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }
@@ -563,14 +676,30 @@ function VoiceMode({
   token,
   autoStart,
   onClose,
+  homeworkOptions,
+  activeHomework,
+  onPickHomework,
+  onMarkHomeworkDone,
 }: {
   token: string;
   autoStart?: boolean;
   onClose: () => void;
+  homeworkOptions: Homework[];
+  activeHomework: Homework | null;
+  onPickHomework: (h: Homework | null) => void;
+  onMarkHomeworkDone: () => void | Promise<void>;
 }) {
   return (
     <ConversationProvider>
-      <VoiceModeContent token={token} autoStart={autoStart} onClose={onClose} />
+      <VoiceModeContent
+        token={token}
+        autoStart={autoStart}
+        onClose={onClose}
+        homeworkOptions={homeworkOptions}
+        activeHomework={activeHomework}
+        onPickHomework={onPickHomework}
+        onMarkHomeworkDone={onMarkHomeworkDone}
+      />
     </ConversationProvider>
   );
 }
@@ -579,10 +708,18 @@ function VoiceModeContent({
   token,
   autoStart,
   onClose: _onClose,
+  homeworkOptions,
+  activeHomework,
+  onPickHomework,
+  onMarkHomeworkDone,
 }: {
   token: string;
   autoStart?: boolean;
   onClose: () => void;
+  homeworkOptions: Homework[];
+  activeHomework: Homework | null;
+  onPickHomework: (h: Homework | null) => void;
+  onMarkHomeworkDone: () => void | Promise<void>;
 }) {
   const start = useServerFn(startVoiceConversation);
   const textTurn = useServerFn(runSparkTextTurn);
@@ -630,7 +767,12 @@ function VoiceModeContent({
     setWarning(null);
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true });
-      const res = await start({ data: { device_token: token } });
+      const res = await start({
+        data: {
+          device_token: token,
+          homework_id: activeHomework?.id ?? null,
+        },
+      });
       if (!res.token || !res.agentId) {
         setWarning(res.warning ?? "Voice agent is not configured yet.");
         setStatus("Idle");
@@ -666,7 +808,7 @@ function VoiceModeContent({
       setStatus(`Error: ${msg}`);
       setWarning(`Could not start: ${msg}`);
     }
-  }, [conversation, start, token]);
+  }, [conversation, start, token, activeHomework]);
 
   useEffect(() => {
     if (autoStart && !startedRef.current) {
@@ -684,7 +826,13 @@ function VoiceModeContent({
     setAgentEmotion("thinking");
     setTranscript((t) => [...t, { role: "you", text }]);
     try {
-      const res = await textTurn({ data: { device_token: token, text } });
+      const res = await textTurn({
+        data: {
+          device_token: token,
+          text,
+          homework_id: activeHomework?.id ?? null,
+        },
+      });
       setAgentEmotion((res.emotion as SparkEmotion) ?? "friendly");
       setTranscript((t) => [...t, { role: "spark", text: res.reply }]);
       if (res.audio_base64) {
@@ -716,6 +864,12 @@ function VoiceModeContent({
 
   return (
     <div className="space-y-4 p-4">
+      <HomeworkPickerBar
+        homeworkOptions={homeworkOptions}
+        activeHomework={activeHomework}
+        onPickHomework={onPickHomework}
+        onMarkHomeworkDone={onMarkHomeworkDone}
+      />
       <div className="grid place-items-center rounded-2xl border border-border bg-background p-6 text-center">
         <SparkAvatar emotion={liveEmotion} size={180} />
         <div className="mt-4 text-lg font-semibold">
@@ -784,7 +938,21 @@ function VoiceModeContent({
 // =====================================================================
 // Chat mode (text-only)
 // =====================================================================
-function ChatMode({ token, seed }: { token: string; seed: string }) {
+function ChatMode({
+  token,
+  seed,
+  homeworkOptions,
+  activeHomework,
+  onPickHomework,
+  onMarkHomeworkDone,
+}: {
+  token: string;
+  seed: string;
+  homeworkOptions: Homework[];
+  activeHomework: Homework | null;
+  onPickHomework: (h: Homework | null) => void;
+  onMarkHomeworkDone: () => void | Promise<void>;
+}) {
   const turn = useServerFn(runSparkTextTurn);
   const [input, setInput] = useState(seed);
   const [busy, setBusy] = useState(false);
@@ -808,7 +976,9 @@ function ChatMode({ token, seed }: { token: string; seed: string }) {
     setErr(null);
     setMessages((m) => [...m, { role: "you", text }]);
     try {
-      const res = await turn({ data: { device_token: token, text } });
+      const res = await turn({
+        data: { device_token: token, text, homework_id: activeHomework?.id ?? null },
+      });
       setMessages((m) => [...m, { role: "spark", text: res.reply, emotion: res.emotion as SparkEmotion }]);
     } catch (e) {
       setErr((e as Error).message);
@@ -820,10 +990,20 @@ function ChatMode({ token, seed }: { token: string; seed: string }) {
 
   return (
     <div className="flex h-[70vh] flex-col">
+      <div className="border-b border-border p-3">
+        <HomeworkPickerBar
+          homeworkOptions={homeworkOptions}
+          activeHomework={activeHomework}
+          onPickHomework={onPickHomework}
+          onMarkHomeworkDone={onMarkHomeworkDone}
+        />
+      </div>
       <div ref={scrollerRef} className="flex-1 space-y-3 overflow-y-auto p-4">
         {messages.length === 0 && (
           <p className="text-center text-sm text-muted-foreground">
-            Ask Spark anything — about your homework, a topic you're stuck on, or what to study next.
+            {activeHomework
+              ? `Ask Spark for help with "${activeHomework.title}". Spark will guide you step-by-step.`
+              : "Ask Spark anything — about your homework, a topic you're stuck on, or what to study next."}
           </p>
         )}
         {messages.map((m, i) =>

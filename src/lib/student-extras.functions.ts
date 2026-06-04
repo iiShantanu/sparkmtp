@@ -161,6 +161,44 @@ export const logStudySession = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// ---------- Homework progress ----------
+
+export const markHomeworkDone = createServerFn({ method: "POST" })
+  .inputValidator((i) =>
+    z
+      .object({
+        device_token: z.string().min(10),
+        homework_id: z.string().uuid(),
+        minutes: z.number().int().min(0).max(600).optional(),
+      })
+      .parse(i),
+  )
+  .handler(async ({ data }) => {
+    const { student_id } = await requireDevice(data.device_token);
+    const { data: hw } = await supabaseAdmin
+      .from("homework")
+      .select("id, title, class_id")
+      .eq("id", data.homework_id)
+      .maybeSingle();
+    if (!hw) throw new Error("Homework not found");
+    const { data: s } = await supabaseAdmin
+      .from("students")
+      .select("class_id")
+      .eq("id", student_id)
+      .single();
+    if ((s as any)?.class_id !== (hw as any).class_id) throw new Error("Not your class");
+
+    await supabaseAdmin.from("study_sessions").insert({
+      student_id,
+      kind: "homework",
+      planned_minutes: 0,
+      actual_minutes: data.minutes ?? 10,
+      ended_at: new Date().toISOString(),
+    });
+    await bumpStreakInternal(student_id);
+    return { ok: true };
+  });
+
 // ---------- Quiz ----------
 
 export const startQuizSession = createServerFn({ method: "POST" })
