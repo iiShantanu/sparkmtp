@@ -2,7 +2,20 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { ConversationProvider, useConversation } from "@elevenlabs/react";
 import { useEffect, useRef, useState } from "react";
-import { Bell, BookOpen, Loader2, Mic, MicOff, Send, Sparkles, X } from "lucide-react";
+import {
+  Bell,
+  Bluetooth,
+  BookOpen,
+  Loader2,
+  Mic,
+  MicOff,
+  Music as MusicIcon,
+  Send,
+  Sparkles,
+  Timer,
+  Wifi,
+  X,
+} from "lucide-react";
 import {
   getStudentSession,
   runHomeworkTurn,
@@ -13,6 +26,26 @@ import {
 } from "@/lib/student-runtime.functions";
 import { deviceHeartbeat } from "@/lib/device.functions";
 import { SparkAvatar, type SparkEmotion } from "@/components/spark-avatar";
+import { Clock } from "@/components/student/clock";
+import { Pomodoro } from "@/components/student/pomodoro";
+import { MusicPlayer } from "@/components/student/music-player";
+import { WifiPanel } from "@/components/student/wifi-panel";
+import { BluetoothPanel } from "@/components/student/bluetooth-panel";
+
+const DISMISSED_KEY = "spark_dismissed_notices";
+function loadDismissed(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    return new Set(JSON.parse(localStorage.getItem(DISMISSED_KEY) || "[]"));
+  } catch {
+    return new Set();
+  }
+}
+function saveDismissed(set: Set<string>) {
+  try {
+    localStorage.setItem(DISMISSED_KEY, JSON.stringify(Array.from(set)));
+  } catch {}
+}
 
 export const Route = createFileRoute("/student")({
   head: () => ({ meta: [{ title: "Spark · Student" }] }),
