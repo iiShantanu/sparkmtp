@@ -23,8 +23,8 @@ import {
   getStudentSession,
   runHomeworkTurn,
   runQuizVoiceTurn,
-  runSparkVoiceTurn,
   runSparkTextTurn,
+  startVoiceConversation,
   ackNotice,
   summarizeVoiceSession,
 } from "@/lib/student-runtime.functions";
@@ -45,6 +45,7 @@ import { WifiPanel } from "@/components/student/wifi-panel";
 import { BluetoothPanel } from "@/components/student/bluetooth-panel";
 import { MessagesPanel } from "@/components/student/messages-panel";
 import { useOnline } from "@/hooks/use-online";
+import { ConversationProvider, useConversation } from "@elevenlabs/react";
 
 const DISMISSED_KEY = "spark_dismissed_notices";
 function loadDismissed(): Set<string> {
@@ -62,6 +63,7 @@ function saveDismissed(set: Set<string>) {
 }
 
 export const Route = createFileRoute("/student")({
+  ssr: false,
   head: () => ({ meta: [{ title: "Spark · Student" }] }),
   component: StudentTablet,
 });
@@ -746,17 +748,9 @@ function SmartReminders({
 }
 
 // =====================================================================
-// Voice mode (auto-starts on mount when autoStart=true)
+// Voice mode — live ElevenLabs Conversational AI agent (WebRTC)
 // =====================================================================
-function VoiceMode({
-  token,
-  autoStart,
-  onClose: _onClose,
-  homeworkOptions,
-  activeHomework,
-  onPickHomework,
-  onMarkHomeworkDone,
-}: {
+type VoiceModeProps = {
   token: string;
   autoStart?: boolean;
   onClose: () => void;
@@ -764,93 +758,132 @@ function VoiceMode({
   activeHomework: Homework | null;
   onPickHomework: (h: Homework | null) => void;
   onMarkHomeworkDone: () => void | Promise<void>;
-}) {
-  const voiceTurn = useServerFn(runSparkVoiceTurn);
+};
+
+function VoiceMode(props: VoiceModeProps) {
+  return (
+    <ConversationProvider>
+      <VoiceModeInner {...props} />
+    </ConversationProvider>
+  );
+}
+
+function VoiceModeInner({
+  token,
+  autoStart,
+  onClose: _onClose,
+  homeworkOptions,
+  activeHomework,
+  onPickHomework,
+  onMarkHomeworkDone,
+}: VoiceModeProps) {
+  const startVoice = useServerFn(startVoiceConversation);
   const summarize = useServerFn(summarizeVoiceSession);
-  const recorderRef = useRef<RecorderState | null>(null);
-  const activeRef = useRef(true);
-  const [status, setStatus] = useState<string>(autoStart ? "Connecting to Spark…" : "Idle");
   const [warning, setWarning] = useState<string | null>(null);
+  const [starting, setStarting] = useState(false);
   const [textInput, setTextInput] = useState("");
-  const [textBusy, setTextBusy] = useState(false);
-  const [recording, setRecording] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [transcript, setTranscript] = useState<Array<{ role: string; text: string }>>([]);
-  const [agentEmotion, setAgentEmotion] = useState<SparkEmotion>("friendly");
   const transcriptRef = useRef<Array<{ role: string; text: string }>>([]);
   const startedRef = useRef(false);
+  const lastHomeworkIdRef = useRef<string | null>(activeHomework?.id ?? null);
 
   const appendLine = useCallback((role: string, text: string) => {
     if (!text.trim()) return;
     transcriptRef.current.push({ role, text });
-    setTranscript((t) => [...t, { role: role === "student" ? "you" : role, text }]);
+    setTranscript((t) => [...t, { role, text }]);
   }, []);
 
-  const speakReply = useCallback(async (reply: string, emotion: SparkEmotion, audio?: string | null) => {
-    setAgentEmotion("speaking");
-    setStatus("Spark is speaking…");
-    await playSparkAudio(audio, reply);
-    if (!activeRef.current) return;
-    setAgentEmotion(emotion || "friendly");
-    setStatus("Listening… tap Done when you finish speaking");
-  }, []);
+  const conv = useConversation({
+    onMessage: (msg: { source?: string; message?: string }) => {
+      const text = (msg?.message ?? "").trim();
+      if (!text) return;
+      const role = msg?.source === "user" ? "you" : "spark";
+      appendLine(role, text);
+    },
+    onError: (err: unknown) => {
+      const message =
+        typeof err === "string"
+          ? err
+          : (err as { message?: string })?.message || "Voice connection error";
+      setWarning(message);
+    },
+  });
 
-  const startListening = useCallback(async () => {
-    await startBrowserRecording(recorderRef);
-    setRecording(true);
-    setStatus("Listening… tap Done when you finish speaking");
-  }, []);
+  const begin = useCallback(
+    async (homeworkId: string | null) => {
+      setWarning(null);
+      setStarting(true);
+      try {
+        if (typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          stream.getTracks().forEach((t) => t.stop());
+        }
+        const res = await startVoice({
+          data: { device_token: token, homework_id: homeworkId },
+        });
+        if (res.warning) {
+          setWarning(res.warning);
+          return;
+        }
+        if (!res.token) {
+          setWarning("Voice agent is not configured.");
+          return;
+        }
+        const overrides: { agent: Record<string, unknown> } | undefined =
+          res.overridesEnabled && res.systemPrompt && res.firstMessage
+            ? {
+                agent: {
+                  prompt: { prompt: res.systemPrompt },
+                  firstMessage: res.firstMessage,
+                  ...(res.language ? { language: res.language } : {}),
+                },
+              }
+            : undefined;
+        conv.startSession({
+          conversationToken: res.token,
+          connectionType: "webrtc",
+          ...(overrides ? { overrides } : {}),
+        } as Parameters<typeof conv.startSession>[0]);
+      } catch (e) {
+        setWarning((e as Error).message || "Could not start voice");
+      } finally {
+        setStarting(false);
+      }
+    },
+    [conv, startVoice, token],
+  );
 
-  const begin = useCallback(async () => {
-    setStatus("Connecting to Spark…");
-    setWarning(null);
-    setBusy(true);
-    try {
-      const permission = await navigator.mediaDevices.getUserMedia({ audio: true });
-      permission.getTracks().forEach((track) => track.stop());
-      const res = await voiceTurn({
-        data: { device_token: token, homework_id: activeHomework?.id ?? null, initial: true },
-      });
-      appendLine("spark", res.reply);
-      await speakReply(res.reply, (res.emotion as SparkEmotion) ?? "friendly", res.audio_base64);
-      if (activeRef.current) await startListening();
-    } catch (e) {
-      const msg = (e as Error).message || String(e);
-      setStatus(`Error: ${msg}`);
-      setWarning(`Could not start: ${msg}`);
-      setAgentEmotion("error");
-    } finally {
-      setBusy(false);
-    }
-  }, [activeHomework, appendLine, speakReply, startListening, token, voiceTurn]);
-
+  // Auto-start once on mount.
   useEffect(() => {
     if (autoStart && !startedRef.current) {
       startedRef.current = true;
-      begin();
+      lastHomeworkIdRef.current = activeHomework?.id ?? null;
+      begin(activeHomework?.id ?? null);
     }
-  }, [autoStart, begin]);
-
-  useEffect(() => {
-    activeRef.current = true;
-    return () => {
-      activeRef.current = false;
-      window.speechSynthesis?.cancel();
-      const current = recorderRef.current;
-      if (current) {
-        current.stream.getTracks().forEach((track) => track.stop());
-        recorderRef.current = null;
-      }
-      const lines = transcriptRef.current.map((m) => `${m.role}: ${m.text}`).join("\n");
-      if (lines.trim().length > 0) {
-        summarizeRef.current?.(lines);
-      }
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Keep latest summarize callback in a ref so the unmount-only effect above
-  // never re-runs when useServerFn returns a fresh function reference.
+  // Restart the session if the student switches homework mid-conversation.
+  useEffect(() => {
+    const newId = activeHomework?.id ?? null;
+    if (!startedRef.current) {
+      lastHomeworkIdRef.current = newId;
+      return;
+    }
+    if (lastHomeworkIdRef.current === newId) return;
+    lastHomeworkIdRef.current = newId;
+    (async () => {
+      try {
+        conv.endSession();
+      } catch {
+        /* ignore */
+      }
+      await begin(newId);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeHomework]);
+
+  // Persist learning-profile summary once on unmount.
   const summarizeRef = useRef<(lines: string) => void>(() => {});
   useEffect(() => {
     summarizeRef.current = (lines: string) => {
@@ -858,78 +891,42 @@ function VoiceMode({
     };
   }, [summarize, token]);
 
-  async function finishRecordingTurn() {
-    if (busy || !recording) return;
-    setBusy(true);
-    setRecording(false);
-    setWarning(null);
-    setAgentEmotion("thinking");
-    setStatus("Spark is thinking…");
-    try {
-      const audio = await stopBrowserRecording(recorderRef);
-      const res = await voiceTurn({
-        data: {
-          device_token: token,
-          homework_id: activeHomework?.id ?? null,
-          audio_base64: audio.base64,
-          audio_mime: audio.mime,
-        },
-      });
-      if (!res.transcript || !res.transcript.trim()) {
-        setAgentEmotion("friendly");
-        setStatus("I didn't catch that — tap Talk again and speak a bit louder.");
-        setWarning("No speech detected. Try again.");
-        return;
+  useEffect(() => {
+    return () => {
+      try {
+        conv.endSession();
+      } catch {
+        /* ignore */
       }
-      appendLine("student", res.transcript || "(voice answer)");
-      appendLine("spark", res.reply);
-      await speakReply(res.reply, (res.emotion as SparkEmotion) ?? "friendly", res.audio_base64);
-      if (activeRef.current) await startListening();
-    } catch (e) {
-      setAgentEmotion("error");
-      setStatus(`Error: ${(e as Error).message}`);
-      setWarning((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
+      const lines = transcriptRef.current.map((m) => `${m.role}: ${m.text}`).join("\n");
+      if (lines.trim().length > 0) summarizeRef.current?.(lines);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  async function sendTextTurn() {
-    const text = textInput.trim();
-    if (!text || textBusy) return;
-    setTextInput("");
-    setTextBusy(true);
-    setWarning(null);
-    setAgentEmotion("thinking");
-    appendLine("student", text);
-    try {
-      const res = await voiceTurn({
-        data: {
-          device_token: token,
-          text,
-          homework_id: activeHomework?.id ?? null,
-        },
-      });
-      setAgentEmotion((res.emotion as SparkEmotion) ?? "friendly");
-      appendLine("spark", res.reply);
-      await speakReply(res.reply, (res.emotion as SparkEmotion) ?? "friendly", res.audio_base64);
-    } catch (e) {
-      setAgentEmotion("error");
-      setWarning((e as Error).message);
-    } finally {
-      setTextBusy(false);
-    }
-  }
+  const connected = conv.status === "connected";
+  const connecting = !connected && (starting || conv.status === "connecting");
+  const liveEmotion: SparkEmotion = warning
+    ? "error"
+    : conv.isSpeaking
+      ? "speaking"
+      : connected
+        ? "listening"
+        : connecting
+          ? "thinking"
+          : "friendly";
 
-  const liveEmotion: SparkEmotion = agentEmotion === "speaking"
-    ? "speaking"
-    : busy || textBusy
-      ? "thinking"
-      : recording
-      ? "listening"
-      : status.startsWith("Error")
-        ? "error"
-        : agentEmotion;
+  const statusText = warning
+    ? `Error: ${warning}`
+    : connecting
+      ? "Connecting to Spark…"
+      : conv.isSpeaking
+        ? "Spark is speaking…"
+        : connected
+          ? conv.isMuted
+            ? "Mic muted — tap Unmute to speak"
+            : "Listening… just start speaking"
+          : "Tap Talk to Spark to start a live conversation.";
 
   return (
     <div className="space-y-4 p-4">
@@ -941,49 +938,53 @@ function VoiceMode({
       />
       <div className="grid place-items-center rounded-2xl border border-border bg-background p-6 text-center">
         <SparkAvatar emotion={liveEmotion} size={180} />
-        <div className="mt-4 text-lg font-semibold">
-          {status === "Idle" ? (autoStart ? "Connecting to Spark…" : "Tap Start to talk") : status}
-        </div>
+        <div className="mt-4 text-lg font-semibold">{statusText}</div>
         {warning && <p className="mt-3 max-w-md text-sm text-amber-600">{warning}</p>}
-        <div className="mt-4 flex gap-3">
-          {recording ? (
-            <button
-              onClick={finishRecordingTurn}
-              disabled={busy}
-              className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-            >
-              <MicOff className="h-4 w-4" /> Done speaking
-            </button>
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+          {connected ? (
+            <>
+              <button
+                onClick={() => conv.setMuted(!conv.isMuted)}
+                className="inline-flex items-center gap-2 rounded-md border border-input bg-background px-4 py-2.5 text-sm font-medium hover:bg-accent"
+              >
+                {conv.isMuted ? (
+                  <>
+                    <Mic className="h-4 w-4" /> Unmute
+                  </>
+                ) : (
+                  <>
+                    <MicOff className="h-4 w-4" /> Mute
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => conv.endSession()}
+                className="inline-flex items-center gap-2 rounded-md bg-destructive px-5 py-2.5 text-sm font-medium text-destructive-foreground hover:bg-destructive/90"
+              >
+                <X className="h-4 w-4" /> End conversation
+              </button>
+            </>
           ) : (
             <button
-              onClick={async () => {
-                // After Spark has already greeted once, "Talk again" should
-                // start listening for the student's next answer — NOT replay
-                // the initial greeting.
-                if (startedRef.current && !warning && !status.startsWith("Error")) {
-                  try {
-                    setWarning(null);
-                    await startListening();
-                  } catch (e) {
-                    setWarning((e as Error).message);
-                    setAgentEmotion("error");
-                  }
-                  return;
-                }
+              onClick={() => {
                 startedRef.current = true;
-                begin();
+                begin(activeHomework?.id ?? null);
               }}
-              disabled={busy}
+              disabled={connecting}
               className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
-              {warning || status.startsWith("Error") ? "Try again" : "Talk again"}
+              {connecting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Mic className="h-4 w-4" />
+              )}
+              {warning ? "Try again" : "Talk to Spark"}
             </button>
           )}
         </div>
       </div>
       {transcript.length > 0 && (
-        <div className="space-y-2 rounded-xl border border-border bg-background p-3 text-sm">
+        <div className="max-h-64 space-y-2 overflow-y-auto rounded-xl border border-border bg-background p-3 text-sm">
           {transcript.map((m, i) => (
             <div key={i}>
               <span className="font-semibold capitalize">{m.role}:</span> {m.text}
@@ -994,23 +995,27 @@ function VoiceMode({
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          sendTextTurn();
+          const text = textInput.trim();
+          if (!text || !connected) return;
+          conv.sendUserMessage(text);
+          appendLine("you", text);
+          setTextInput("");
         }}
         className="flex gap-2"
       >
         <input
           value={textInput}
           onChange={(e) => setTextInput(e.target.value)}
-          placeholder="Or type to Spark…"
-          className="flex-1 rounded-md border border-input bg-background px-3 py-2.5 text-sm"
+          placeholder={connected ? "Or type to Spark…" : "Start the conversation to type"}
+          disabled={!connected}
+          className="flex-1 rounded-md border border-input bg-background px-3 py-2.5 text-sm disabled:opacity-50"
         />
         <button
           type="submit"
-          disabled={textBusy || !textInput.trim()}
+          disabled={!connected || !textInput.trim()}
           className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
-          {textBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          Send
+          <Send className="h-4 w-4" /> Send
         </button>
       </form>
     </div>
