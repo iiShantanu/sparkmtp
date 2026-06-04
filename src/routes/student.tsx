@@ -35,6 +35,7 @@ import {
   getStreak,
   startQuizSession,
   finishQuiz,
+  markHomeworkDone,
 } from "@/lib/student-extras.functions";
 import { deviceHeartbeat } from "@/lib/device.functions";
 import { SparkAvatar, type SparkEmotion } from "@/components/spark-avatar";
@@ -110,7 +111,7 @@ type VoiceMessage = {
   agent_response_event?: { agent_response?: string };
 };
 
-type Overlay = null | "voice" | "chat" | "homework" | "quiz";
+type Overlay = null | "voice" | "chat" | "quiz";
 type Tool = null | "music" | "pomodoro" | "wifi" | "bt";
 
 function StudentTablet() {
@@ -123,6 +124,7 @@ function StudentTablet() {
   const fetchGoal = useServerFn(getOrCreateTodayGoal);
   const completeGoal = useServerFn(markGoalDone);
   const fetchStreak = useServerFn(getStreak);
+  const completeHomework = useServerFn(markHomeworkDone);
 
   const [session, setSession] = useState<StudentSession | null>(null);
   const [goal, setGoal] = useState<DailyGoal | null>(null);
@@ -344,7 +346,7 @@ function StudentTablet() {
           }}
           onOpenHomework={(h) => {
             setActiveHomework(h);
-            setOverlay("homework");
+            setOverlay("voice");
           }}
         />
 
@@ -378,7 +380,7 @@ function StudentTablet() {
                   <button
                     onClick={() => {
                       setActiveHomework(h);
-                      setOverlay("homework");
+                      setOverlay("voice");
                     }}
                     className="w-full rounded-xl border border-border bg-card p-4 text-left transition hover:border-primary"
                   >
@@ -401,18 +403,67 @@ function StudentTablet() {
 
       {/* Overlays */}
       {overlay === "voice" && (
-        <OverlayShell title="Talk to Spark" onClose={() => setOverlay(null)}>
-          <VoiceMode token={token} autoStart onClose={() => setOverlay(null)} />
+        <OverlayShell
+          title={activeHomework ? `Homework · ${activeHomework.title}` : "Talk to Spark"}
+          onClose={() => {
+            setOverlay(null);
+            setActiveHomework(null);
+          }}
+        >
+          <VoiceMode
+            token={token}
+            autoStart
+            onClose={() => {
+              setOverlay(null);
+              setActiveHomework(null);
+            }}
+            homeworkOptions={session.homework}
+            activeHomework={activeHomework}
+            onPickHomework={setActiveHomework}
+            onMarkHomeworkDone={async () => {
+              if (!activeHomework) return;
+              try {
+                await completeHomework({
+                  data: { device_token: token!, homework_id: activeHomework.id },
+                });
+                const s = await fetchStreak({ data: { device_token: token! } });
+                setStreak(s as Streak);
+                setActiveHomework(null);
+              } catch (e) {
+                console.warn("mark homework done failed:", (e as Error).message);
+              }
+            }}
+          />
         </OverlayShell>
       )}
       {overlay === "chat" && (
-        <OverlayShell title="Chat with Spark" onClose={() => setOverlay(null)}>
-          <ChatMode token={token} seed={chatSeed} />
-        </OverlayShell>
-      )}
-      {overlay === "homework" && activeHomework && (
-        <OverlayShell title={activeHomework.title} onClose={() => setOverlay(null)}>
-          <HomeworkMode token={token} homework={activeHomework} />
+        <OverlayShell
+          title={activeHomework ? `Homework · ${activeHomework.title}` : "Chat with Spark"}
+          onClose={() => {
+            setOverlay(null);
+            setActiveHomework(null);
+          }}
+        >
+          <ChatMode
+            token={token}
+            seed={chatSeed}
+            homeworkOptions={session.homework}
+            activeHomework={activeHomework}
+            onPickHomework={setActiveHomework}
+            onMarkHomeworkDone={async () => {
+              if (!activeHomework) return;
+              try {
+                await completeHomework({
+                  data: { device_token: token!, homework_id: activeHomework.id },
+                });
+                const s = await fetchStreak({ data: { device_token: token! } });
+                setStreak(s as Streak);
+                setActiveHomework(null);
+              } catch (e) {
+                console.warn("mark homework done failed:", (e as Error).message);
+              }
+            }}
+          />
         </OverlayShell>
       )}
       {overlay === "quiz" && (
