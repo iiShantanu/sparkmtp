@@ -182,19 +182,28 @@ function StudentTablet() {
             </div>
           </div>
         </div>
-        <button
-          onClick={() => setNoticesOpen(true)}
-          className="relative inline-flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-          aria-label="Open notices"
-        >
-          <Bell className="h-4 w-4" />
-          {notices.length} notice{notices.length === 1 ? "" : "s"}
-          {unseenCount > 0 && (
-            <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
-              {unseenCount}
-            </span>
-          )}
-        </button>
+        <div className="flex items-center gap-3">
+          <Clock />
+          <button onClick={() => setTool("wifi")} className="rounded-full border border-border p-2 text-muted-foreground hover:bg-accent hover:text-foreground" aria-label="Wi-Fi">
+            <Wifi className="h-4 w-4" />
+          </button>
+          <button onClick={() => setTool("bt")} className="rounded-full border border-border p-2 text-muted-foreground hover:bg-accent hover:text-foreground" aria-label="Bluetooth">
+            <Bluetooth className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => setNoticesOpen(true)}
+            className="relative inline-flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+            aria-label="Open notices"
+          >
+            <Bell className="h-4 w-4" />
+            {notices.length}
+            {unseenCount > 0 && (
+              <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+                {unseenCount}
+              </span>
+            )}
+          </button>
+        </div>
       </header>
 
       <main className="mx-auto max-w-4xl p-6">
@@ -206,6 +215,7 @@ function StudentTablet() {
               setActiveHomework(h);
               setView("homework");
             }}
+            onTool={setTool}
           />
         )}
         {view === "voice" && <VoiceMode token={token} onBack={() => setView("home")} />}
@@ -213,16 +223,6 @@ function StudentTablet() {
           <HomeworkMode token={token} homework={activeHomework} onBack={() => setView("home")} />
         )}
       </main>
-
-      {activeNotice && (
-        <NoticeModal
-          notice={activeNotice}
-          onClose={async () => {
-            await dismiss(activeNotice.id);
-            setActiveNotice(null);
-          }}
-        />
-      )}
 
       {noticesOpen && (
         <NoticesPanel
@@ -232,6 +232,11 @@ function StudentTablet() {
           onClose={() => setNoticesOpen(false)}
         />
       )}
+
+      {tool === "music" && <MusicPlayer onClose={() => setTool(null)} />}
+      {tool === "pomodoro" && <Pomodoro onClose={() => setTool(null)} />}
+      {tool === "wifi" && <WifiPanel onClose={() => setTool(null)} />}
+      {tool === "bt" && <BluetoothPanel onClose={() => setTool(null)} />}
     </div>
   );
 }
