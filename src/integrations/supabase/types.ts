@@ -141,6 +141,50 @@ export type Database = {
           },
         ]
       }
+      daily_goals: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          goal_date: string
+          id: string
+          set_by_user_id: string | null
+          source: string
+          student_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          goal_date: string
+          id?: string
+          set_by_user_id?: string | null
+          source?: string
+          student_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          goal_date?: string
+          id?: string
+          set_by_user_id?: string | null
+          source?: string
+          student_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_goals_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       devices: {
         Row: {
           claimed: boolean
@@ -395,6 +439,38 @@ export type Database = {
         }
         Relationships: []
       }
+      learning_streaks: {
+        Row: {
+          current_streak: number
+          last_active_date: string | null
+          longest_streak: number
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          current_streak?: number
+          last_active_date?: string | null
+          longest_streak?: number
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          current_streak?: number
+          last_active_date?: string | null
+          longest_streak?: number
+          student_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "learning_streaks_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: true
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notices: {
         Row: {
           body: string | null
@@ -535,6 +611,53 @@ export type Database = {
         }
         Relationships: []
       }
+      quiz_attempts: {
+        Row: {
+          created_at: string
+          ended_at: string | null
+          id: string
+          score: number | null
+          started_at: string
+          student_id: string
+          subject: string | null
+          topic: string | null
+          total: number | null
+          transcript: string | null
+        }
+        Insert: {
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          score?: number | null
+          started_at?: string
+          student_id: string
+          subject?: string | null
+          topic?: string | null
+          total?: number | null
+          transcript?: string | null
+        }
+        Update: {
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          score?: number | null
+          started_at?: string
+          student_id?: string
+          subject?: string | null
+          topic?: string | null
+          total?: number | null
+          transcript?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_attempts_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       schools: {
         Row: {
           created_at: string
@@ -626,6 +749,47 @@ export type Database = {
             columns: ["class_id"]
             isOneToOne: false
             referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      study_sessions: {
+        Row: {
+          actual_minutes: number
+          created_at: string
+          ended_at: string | null
+          id: string
+          kind: string
+          planned_minutes: number
+          started_at: string
+          student_id: string
+        }
+        Insert: {
+          actual_minutes?: number
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          kind: string
+          planned_minutes?: number
+          started_at?: string
+          student_id: string
+        }
+        Update: {
+          actual_minutes?: number
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          kind?: string
+          planned_minutes?: number
+          started_at?: string
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "study_sessions_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
             referencedColumns: ["id"]
           },
         ]
