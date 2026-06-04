@@ -159,6 +159,7 @@ function StudentTablet() {
 
   async function dismiss(id: string) {
     dismissedRef.current.add(id);
+    saveDismissed(dismissedRef.current);
     forceRender((x) => x + 1);
     try {
       await ack({ data: { device_token: token!, notice_id: id } });
