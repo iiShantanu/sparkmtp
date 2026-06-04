@@ -1,127 +1,156 @@
 
-# Make Spark a real tutor, not a generic voice AI
+# Student page — Raspberry Pi kiosk plan
 
-Today the ElevenLabs agent is configured **once globally** with a static system prompt (the PATCH we did earlier). When a student taps **Start**, ElevenLabs has no idea who they are, what class they're in, what homework was assigned, what they struggled with last time, or which subjects their teacher flagged as weak. That's why it behaves like a friendly chatbot instead of a tutor.
-
-The fix has three parts: send rich student context **per session**, give Spark a **persistent memory** of each student across sessions, and tell the agent to **open like a tutor** (proactively suggest subjects, recall past struggles, continue unfinished topics).
+I'll split this into **what's fully possible in the browser**, **what needs a small helper service on the Pi**, and **what's not realistic**. Then I'll lay out the concrete changes.
 
 ---
 
-## 1. Per-session context via ElevenLabs conversation overrides
+## 1. Feasibility — read this first
 
-ElevenLabs supports `overrides` on `startSession` — you can dynamically inject the system prompt, first message, and variables for that one call. We'll stop relying on the static PATCH'd prompt and instead build a fresh, student-specific prompt every time **Start** is tapped.
+| Feature | Verdict | How |
+|---|---|---|
+| Fix "Start" disconnecting silently | Possible | Debug ElevenLabs override / agent config |
+| Stop repeating notice popup | Possible | Persist dismissals in `localStorage`, not in-memory |
+| Talk-to-AI button on first screen | Possible | Already there — make it the dominant action |
+| Clock | Possible | Pure JS |
+| Timer / Pomodoro / Stopwatch | Possible | Pure JS + localStorage |
+| Store & play music | Possible | Files saved in **IndexedDB** on the device; HTML `<audio>` plays them. No server. |
+| Offline interface (UI loads with no Wi-Fi, AI disabled) | Possible | Service worker + cache + IndexedDB |
+| **Wi-Fi scan / connect from the page** | **Not possible from a normal browser.** No Web API exists for Wi-Fi. | Requires a tiny helper service on the Pi (Python/Node) that runs `nmcli` and exposes `http://127.0.0.1:8765`. The page calls localhost. |
+| **Bluetooth pairing** | **Partially possible.** Web Bluetooth can connect to *specific* BLE devices but **cannot do system-wide pairing** (no classic audio, no "pair my speaker"). | Real pairing also needs the helper service calling `bluetoothctl`. |
+| Kiosk mode (page opens on boot, nothing else accessible) | Possible | OS-level config on the Pi (Chromium `--kiosk`, autostart, disable cursor/keys). I can provide the scripts but they install on the Pi, not in this repo. |
+| True PWA install / offline cache on Pi Chromium | Possible | Add manifest + service worker |
 
-Server-side (`startVoiceConversation` in `src/lib/student-runtime.functions.ts`), before returning the WebRTC token, we will gather:
-
-- **Student**: name, class, section
-- **Teacher AI config**: the resolved `ai_configs` row (teaching style, tone, language, complexity, custom prompt) — same resolver already used for text turns
-- **Subjects** the teacher teaches this class
-- **Active homework** (titles, subjects, due dates, teacher instructions)
-- **Active notices** addressed to the student/class
-- **Learning profile** (new table — see §2): weak topics, strong topics, current focus, last-session summary, unresolved doubts
-- **Recent interaction history**: last ~10 interaction_logs question/response pairs as a memory snippet
-
-Return all of this to the client along with the token. The client passes it via `conversation.startSession({ conversationToken, overrides: { agent: { prompt, firstMessage, language } } })`.
-
-The new system prompt template will instruct the agent to:
-- Greet the student by name
-- Open by **asking which subject they want to work on**, and **suggest one based on weak topics or pending homework** ("You had trouble with fractions last time — want to keep going, or start the science homework due tomorrow?")
-- Reference specific past sessions when relevant ("Last time we were working on ___ — should we continue?")
-- Stay in the Socratic / guided style their teacher configured
-- Keep using the existing `[emotion:…]` tag rule for the avatar
-
-The `firstMessage` override will be a personalized opener generated server-side from the same context, so the agent talks first the moment the call connects — no awkward silence.
-
-> Enabling overrides in the ElevenLabs agent settings: prompt, firstMessage, and language overrides must be allow-listed on the agent. We'll PATCH the agent once via the existing API key flow to enable them, then rely on per-session overrides instead of mutating the static prompt going forward.
-
-## 2. Persistent learning memory per student
-
-Add a new table `student_learning_profile` (one row per student) with:
-
-- `current_focus` (text — e.g. "fractions")
-- `weak_topics` (text[])
-- `strong_topics` (text[])
-- `last_session_summary` (text)
-- `unresolved_doubts` (jsonb — array of `{ topic, question, last_seen_at }`)
-- `updated_at`
-
-After every voice/text/homework turn (in `runSparkTextTurn`, `runHomeworkTurn`, and a new post-call summarizer for voice sessions), run a **lightweight Lovable AI call** (`google/gemini-3.1-flash-lite-preview`) that takes the latest exchange + previous profile and returns an updated profile JSON. We persist that back via `supabaseAdmin`.
-
-For voice sessions specifically, ElevenLabs gives us the full transcript through `onMessage` events. We'll buffer those client-side and send the whole transcript to a new server function `summarizeVoiceSession` on `endSession`, which updates the profile.
-
-RLS: profile is server-managed only (no client policy). Reads only happen through `supabaseAdmin` inside server functions — no GRANT to anon/authenticated needed beyond `service_role`.
-
-## 3. Tutor-style opening flow
-
-The agent's prompt will enforce this opening script (executed via `firstMessage` + system instructions):
-
-1. Greet by first name.
-2. If `unresolved_doubts` is non-empty → "Last time we were stuck on X. Want to finish that first?"
-3. Else if pending homework exists → "You have homework on Y due Z. Should we tackle it?"
-4. Else if `weak_topics` non-empty → "Your teacher flagged fractions as something to practice. Want to work on that?"
-5. Else → "Which subject would you like to study today? You have A, B, C."
-
-Always offer **a concrete suggestion + an open question**, never a generic "How can I help?".
-
-## 4. Prototype banner
-
-Add a small "Prototype" badge in the student header (per your note that this is still a prototype), purely visual, no logic.
+**Bottom line:** Wi-Fi and Bluetooth from a web page need a **small companion process running on the Raspberry Pi**. I'll design the web UI assuming that helper exists at `http://127.0.0.1:8765`, and I'll provide the helper as a small Python script + systemd unit you install once on the Pi. If the helper isn't running (e.g. development on your laptop), those panels show "Hardware controls unavailable on this device."
 
 ---
 
-## Technical Details
+## 2. Bug fixes (do first)
 
-### Files to change / create
+### 2a. Voice Start disconnects immediately
+Most likely causes given the recent overrides change:
+- ElevenLabs agent rejected the override payload (`prompt`/`firstMessage`/`language` not enabled, or `prompt` shape wrong)
+- Token expired / wrong agent ID
+- `conversation.startSession` throws and `onDisconnect` fires before `onError` is surfaced
 
-| File | Change |
-| --- | --- |
-| `supabase/migrations/<ts>_student_learning_profile.sql` | New table + `service_role` grant + no public-facing RLS policies (server-only) |
-| `src/lib/student-runtime.functions.ts` | Expand `startVoiceConversation` to build full context payload; add `summarizeVoiceSession`; extend `runSparkTextTurn` / `runHomeworkTurn` to update profile after each turn |
-| `src/lib/spark-context.server.ts` (new) | Helpers: `loadStudentContext(student_id)`, `buildTutorSystemPrompt(ctx)`, `buildFirstMessage(ctx)`, `updateLearningProfile(student_id, transcript, prevProfile)` |
-| `src/routes/student.tsx` | Pass `overrides.agent.prompt` + `overrides.agent.firstMessage` to `conversation.startSession`; buffer transcript; call `summarizeVoiceSession` on `endSession`; add prototype badge |
-| One-time PATCH to ElevenLabs agent | Enable `prompt`, `first_message`, and `language` in `conversation_config.agent.overrides` so per-session overrides are accepted |
+Plan: add visible error capture (show `onError` message in UI), log the override payload, re-verify the agent's `conversation_config.agent.overrides` allow-list via the ElevenLabs API, and fall back to **no overrides** if the patch returns 4xx so the user always gets *some* conversation.
 
-### Prompt template shape (server-built, sent as override)
+### 2b. Repeating notice popup
+Currently dismissals live in a `useRef<Set>` that resets on remount, and the 30s `refresh()` re-opens the first unacknowledged notice. Fix:
+- Persist dismissed IDs in `localStorage` (`spark_dismissed_notices`)
+- Only auto-open a notice if it arrived **after** the last dismissal timestamp
+- Never auto-open while the panel is open or voice/homework view is active
 
-```
-You are Spark, {student.full_name}'s personal tutor for {class.name} {section}.
-Teacher's style: {teaching_style} | tone: {tone} | language: {language} | complexity: {complexity}.
+---
 
-What you know about this student:
-- Current focus: {current_focus}
-- Weak topics: {weak_topics}
-- Strong topics: {strong_topics}
-- Last session: {last_session_summary}
-- Unresolved doubts: {unresolved_doubts}
+## 3. New home layout (kiosk-first)
 
-Subjects available: {subjects}
-Active homework: {homework[]}  (title, subject, due, teacher instructions)
-Active notices: {notices[]}
+Reorganise `/student` into a single dashboard the student lands on:
 
-Rules:
-- Begin EVERY reply with one [emotion:…] tag (existing list).
-- Open with a concrete suggestion based on the rules above. Never say "how can I help".
-- Teach Socratically — guide, don't give the final answer.
-- Reference past sessions when relevant ("we were stuck on X, want to continue?").
-- After the student picks a subject, stay focused on it until they switch.
+```text
+┌──────────────────────────────────────────────────────┐
+│ Hi, {name}    🕘 14:32   🔔(2)  📶 Wi-Fi  🔵 BT      │
+├──────────────────────────────────────────────────────┤
+│  ┌──────────────────┐   ┌────────────────────────┐   │
+│  │  TALK TO SPARK   │   │  Today's homework      │   │
+│  │  (big avatar)    │   │  • Fractions           │   │
+│  │  [ Start ]       │   │  • Reading             │   │
+│  └──────────────────┘   └────────────────────────┘   │
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐    │
+│  │ Music   │ │ Pomodoro│ │ Clock   │ │ Settings│    │
+│  └─────────┘ └─────────┘ └─────────┘ └─────────┘    │
+└──────────────────────────────────────────────────────┘
 ```
 
-### Cost / model choice
-
-- Per-turn profile updates: `google/gemini-3.1-flash-lite-preview` (cheap, fast). 
-- End-of-call summary: same model, single call per session.
-- Existing tutor responses unchanged (`google/gemini-3-flash-preview`).
-
-### No breaking changes
-
-- Existing `runSparkTextTurn` / `runHomeworkTurn` keep their current return shape.
-- The static agent prompt PATCH still works as a fallback if overrides ever fail; the override just supersedes it per session.
+- **Talk to Spark** stays the primary CTA.
+- Header gets: clock, notice bell (opens panel — never auto-opens), Wi-Fi indicator, Bluetooth indicator.
+- New tiles: Music, Pomodoro/Timer, Settings (Wi-Fi/Bluetooth live here).
+- All other routes (`/login`, `/admin`, `/teacher`, etc.) remain in the codebase but the Pi's kiosk Chromium only opens `/student` — students literally can't navigate elsewhere.
 
 ---
 
-## Out of scope (ask if you want these next)
+## 4. New features
 
-- Showing the learning profile to teachers in the dashboard
-- Parent visibility into weak/strong topics
-- Multi-language detection (currently respects teacher's configured `language`)
-- Long-term spaced-repetition scheduling
+### Clock
+Always visible in header. 12/24h toggle in settings, persisted locally.
+
+### Pomodoro / Timer / Stopwatch
+- Modal opened from tile. Three tabs.
+- State persists across reloads via `localStorage`.
+- Optional chime sound (bundled audio file).
+
+### Music player
+- "Add music" button opens file picker (`<input type="file" accept="audio/*" multiple>`).
+- Files stored as `Blob` in **IndexedDB** (`spark_music` store).
+- Player with play/pause/next/prev/volume, current track displayed.
+- Works fully offline. No upload, no cloud, no auth.
+
+### Wi-Fi panel (Settings → Wi-Fi)
+- Calls `GET http://127.0.0.1:8765/wifi/scan` → list of SSIDs + signal.
+- "Connect" prompts for password, calls `POST /wifi/connect`.
+- Shows current SSID and IP.
+- If helper unreachable: "Wi-Fi controls require the Spark device service. Not available in browser preview."
+
+### Bluetooth panel (Settings → Bluetooth)
+- `GET /bt/scan`, `POST /bt/pair`, `POST /bt/connect`, `POST /bt/disconnect`.
+- Useful for pairing a speaker/headphones for the AI voice and music.
+- Same fallback message if helper is missing.
+
+### Offline mode
+- Service worker caches the app shell, fonts, icons, the SPA bundle.
+- IndexedDB holds: dismissed notices, music library, Pomodoro state, last-known student session snapshot, queued voice transcripts to summarise once online.
+- When offline: AI tiles show "Offline — reconnect to talk with Spark", everything else (clock, music, timer, viewing cached homework text) keeps working.
+- Online detection via `navigator.onLine` + ping to the backend every 30s.
+
+---
+
+## 5. Raspberry Pi side (delivered as docs + scripts, not app code)
+
+I'll add a `raspberry-pi/` folder in the repo with:
+
+1. `spark-device-service.py` — Flask app on `127.0.0.1:8765`:
+   - `/wifi/scan|connect|status` → wraps `nmcli`
+   - `/bt/scan|pair|connect|disconnect|status` → wraps `bluetoothctl`
+   - CORS locked to `http://localhost` + the published Lovable domain
+2. `spark-device.service` — systemd unit, auto-start on boot
+3. `kiosk-autostart.sh` — launches Chromium in `--kiosk --app=https://<your-app>/student --noerrdialogs --disable-pinch --overscroll-history-navigation=0`
+4. `setup.sh` — installs deps (`network-manager`, `bluez`, `chromium-browser`, `unclutter`), enables the service, configures autologin to the kiosk session
+5. `README.md` — flash → boot → run `setup.sh` → done
+
+You run `setup.sh` once on the Pi. After that, power-on lands directly in the student page, full screen, no address bar, no other apps reachable.
+
+---
+
+## 6. Files I'll touch (technical section)
+
+**Edit**
+- `src/routes/student.tsx` — new dashboard layout, header clock/indicators, remove notice auto-popup, hand off to new components
+- `src/lib/student-runtime.functions.ts` — better error surfacing for voice start, allow voice start without overrides as fallback
+- `src/lib/spark-context.server.ts` — return a flag when overrides PATCH failed so client knows to skip them
+- `vite.config.ts` — register `vite-plugin-pwa` with the guarded wrapper described in the PWA skill
+
+**Create**
+- `src/components/student/header-bar.tsx` (clock, bell, wifi/bt indicators)
+- `src/components/student/music-player.tsx` + `src/lib/music-store.ts` (IndexedDB)
+- `src/components/student/pomodoro.tsx`
+- `src/components/student/wifi-panel.tsx` + `src/components/student/bluetooth-panel.tsx`
+- `src/lib/device-bridge.ts` — typed client for `http://127.0.0.1:8765`
+- `src/lib/offline-store.ts` — IndexedDB wrapper (dismissed notices, cached session, queued transcripts)
+- `src/pwa-register.ts` — guarded SW registration (kiosk-only, never in Lovable preview)
+- `raspberry-pi/` folder with service, systemd unit, kiosk autostart, README
+
+**Not changed**
+- Admin / teacher / parent routes
+- Auth, DB schema, RLS
+- ElevenLabs agent config beyond verifying overrides
+
+---
+
+## 7. What I want confirmed before building
+
+1. **Helper service language: Python (Flask) or Node?** Python is lighter on Pi and matches `nmcli`/`bluetoothctl` examples best — that's my recommendation.
+2. **Music storage cap** — fine to leave it unbounded (IndexedDB will use whatever the Pi's SD card allows), or cap at, say, 500 MB with a "manage library" screen?
+3. **Kiosk URL** — point the Pi at the published URL (`https://bloom-classroom-hub.lovable.app/student`) so updates push automatically, correct?
+4. **Offline AI** — confirm you only want the *UI* offline; we will NOT bundle a local LLM. AI features simply show "offline" when there's no internet.
+
+Once you confirm, I'll switch to build mode and implement in this order: bug fixes → new home layout + clock/pomodoro/music → offline/PWA → Wi-Fi/Bluetooth panels + Pi helper service + kiosk scripts.

@@ -2,7 +2,20 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { ConversationProvider, useConversation } from "@elevenlabs/react";
 import { useEffect, useRef, useState } from "react";
-import { Bell, BookOpen, Loader2, Mic, MicOff, Send, Sparkles, X } from "lucide-react";
+import {
+  Bell,
+  Bluetooth,
+  BookOpen,
+  Loader2,
+  Mic,
+  MicOff,
+  Music as MusicIcon,
+  Send,
+  Sparkles,
+  Timer,
+  Wifi,
+  X,
+} from "lucide-react";
 import {
   getStudentSession,
   runHomeworkTurn,
@@ -13,6 +26,26 @@ import {
 } from "@/lib/student-runtime.functions";
 import { deviceHeartbeat } from "@/lib/device.functions";
 import { SparkAvatar, type SparkEmotion } from "@/components/spark-avatar";
+import { Clock } from "@/components/student/clock";
+import { Pomodoro } from "@/components/student/pomodoro";
+import { MusicPlayer } from "@/components/student/music-player";
+import { WifiPanel } from "@/components/student/wifi-panel";
+import { BluetoothPanel } from "@/components/student/bluetooth-panel";
+
+const DISMISSED_KEY = "spark_dismissed_notices";
+function loadDismissed(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    return new Set(JSON.parse(localStorage.getItem(DISMISSED_KEY) || "[]"));
+  } catch {
+    return new Set();
+  }
+}
+function saveDismissed(set: Set<string>) {
+  try {
+    localStorage.setItem(DISMISSED_KEY, JSON.stringify(Array.from(set)));
+  } catch {}
+}
 
 export const Route = createFileRoute("/student")({
   head: () => ({ meta: [{ title: "Spark · Student" }] }),
@@ -61,10 +94,10 @@ function StudentTablet() {
   const [session, setSession] = useState<StudentSession | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [view, setView] = useState<"home" | "voice" | "homework">("home");
+  const [tool, setTool] = useState<null | "music" | "pomodoro" | "wifi" | "bt">(null);
   const [activeHomework, setActiveHomework] = useState<Homework | null>(null);
-  const [activeNotice, setActiveNotice] = useState<Notice | null>(null);
   const [noticesOpen, setNoticesOpen] = useState(false);
-  const dismissedRef = useRef<Set<string>>(new Set());
+  const dismissedRef = useRef<Set<string>>(loadDismissed());
   const [, forceRender] = useState(0);
 
   useEffect(() => {
@@ -80,8 +113,6 @@ function StudentTablet() {
     try {
       const data = await fetchSession({ data: { device_token: t } });
       setSession(data as StudentSession);
-      const fresh = (data.notices ?? []).find((n: Notice) => !dismissedRef.current.has(n.id));
-      if (fresh && !activeNotice) setActiveNotice(fresh);
     } catch (e) {
       const msg = (e as Error).message;
       setErr(msg);
@@ -128,6 +159,7 @@ function StudentTablet() {
 
   async function dismiss(id: string) {
     dismissedRef.current.add(id);
+    saveDismissed(dismissedRef.current);
     forceRender((x) => x + 1);
     try {
       await ack({ data: { device_token: token!, notice_id: id } });
@@ -151,19 +183,28 @@ function StudentTablet() {
             </div>
           </div>
         </div>
-        <button
-          onClick={() => setNoticesOpen(true)}
-          className="relative inline-flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-          aria-label="Open notices"
-        >
-          <Bell className="h-4 w-4" />
-          {notices.length} notice{notices.length === 1 ? "" : "s"}
-          {unseenCount > 0 && (
-            <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
-              {unseenCount}
-            </span>
-          )}
-        </button>
+        <div className="flex items-center gap-3">
+          <Clock />
+          <button onClick={() => setTool("wifi")} className="rounded-full border border-border p-2 text-muted-foreground hover:bg-accent hover:text-foreground" aria-label="Wi-Fi">
+            <Wifi className="h-4 w-4" />
+          </button>
+          <button onClick={() => setTool("bt")} className="rounded-full border border-border p-2 text-muted-foreground hover:bg-accent hover:text-foreground" aria-label="Bluetooth">
+            <Bluetooth className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => setNoticesOpen(true)}
+            className="relative inline-flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+            aria-label="Open notices"
+          >
+            <Bell className="h-4 w-4" />
+            {notices.length}
+            {unseenCount > 0 && (
+              <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+                {unseenCount}
+              </span>
+            )}
+          </button>
+        </div>
       </header>
 
       <main className="mx-auto max-w-4xl p-6">
@@ -175,6 +216,7 @@ function StudentTablet() {
               setActiveHomework(h);
               setView("homework");
             }}
+            onTool={setTool}
           />
         )}
         {view === "voice" && <VoiceMode token={token} onBack={() => setView("home")} />}
@@ -182,16 +224,6 @@ function StudentTablet() {
           <HomeworkMode token={token} homework={activeHomework} onBack={() => setView("home")} />
         )}
       </main>
-
-      {activeNotice && (
-        <NoticeModal
-          notice={activeNotice}
-          onClose={async () => {
-            await dismiss(activeNotice.id);
-            setActiveNotice(null);
-          }}
-        />
-      )}
 
       {noticesOpen && (
         <NoticesPanel
@@ -201,6 +233,11 @@ function StudentTablet() {
           onClose={() => setNoticesOpen(false)}
         />
       )}
+
+      {tool === "music" && <MusicPlayer onClose={() => setTool(null)} />}
+      {tool === "pomodoro" && <Pomodoro onClose={() => setTool(null)} />}
+      {tool === "wifi" && <WifiPanel onClose={() => setTool(null)} />}
+      {tool === "bt" && <BluetoothPanel onClose={() => setTool(null)} />}
     </div>
   );
 }
@@ -209,10 +246,12 @@ function Home({
   session,
   onTalk,
   onHomework,
+  onTool,
 }: {
   session: StudentSession;
   onTalk: () => void;
   onHomework: (h: Homework) => void;
+  onTool: (t: "music" | "pomodoro" | "wifi" | "bt") => void;
 }) {
   return (
     <div className="space-y-6">
@@ -228,6 +267,18 @@ function Home({
           </div>
         </div>
       </button>
+
+      <section>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          Tools
+        </h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <ToolTile icon={<MusicIcon className="h-5 w-5" />} label="Music" onClick={() => onTool("music")} />
+          <ToolTile icon={<Timer className="h-5 w-5" />} label="Pomodoro" onClick={() => onTool("pomodoro")} />
+          <ToolTile icon={<Wifi className="h-5 w-5" />} label="Wi-Fi" onClick={() => onTool("wifi")} />
+          <ToolTile icon={<Bluetooth className="h-5 w-5" />} label="Bluetooth" onClick={() => onTool("bt")} />
+        </div>
+      </section>
 
       <section>
         <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
@@ -261,6 +312,18 @@ function Home({
         )}
       </section>
     </div>
+  );
+}
+
+function ToolTile({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex flex-col items-center gap-2 rounded-xl border border-border bg-card p-4 text-sm font-medium transition hover:border-primary hover:bg-accent"
+    >
+      <span className="grid h-10 w-10 place-items-center rounded-lg bg-primary/10 text-primary">{icon}</span>
+      {label}
+    </button>
   );
 }
 
@@ -317,6 +380,7 @@ function VoiceModeContent({ token, onBack }: { token: string; onBack: () => void
 
   async function begin() {
     setStatus("Requesting microphone…");
+    setWarning(null);
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true });
       const res = await start({ data: { device_token: token } });
@@ -326,19 +390,38 @@ function VoiceModeContent({ token, onBack }: { token: string; onBack: () => void
         return;
       }
       setStatus("Connecting…");
-      await conversation.startSession({
+      // Build session payload. Only include overrides if the server confirmed
+      // the agent has overrides enabled — otherwise ElevenLabs rejects the
+      // session immediately ("disconnects without saying anything").
+      const payload: Record<string, unknown> = {
         conversationToken: res.token,
         connectionType: "webrtc",
-        overrides: {
+      };
+      if (res.systemPrompt || res.firstMessage || res.language) {
+        payload.overrides = {
           agent: {
-            prompt: res.systemPrompt ? { prompt: res.systemPrompt } : undefined,
-            firstMessage: res.firstMessage ?? undefined,
-            language: res.language ?? undefined,
+            ...(res.systemPrompt ? { prompt: { prompt: res.systemPrompt } } : {}),
+            ...(res.firstMessage ? { firstMessage: res.firstMessage } : {}),
+            ...(res.language ? { language: res.language } : {}),
           },
-        },
-      } as any);
+        };
+      }
+      try {
+        await conversation.startSession(payload as any);
+      } catch (e) {
+        // If the agent rejected our overrides, retry one time without them.
+        if (payload.overrides) {
+          console.warn("startSession with overrides failed, retrying plain:", (e as Error).message);
+          delete payload.overrides;
+          await conversation.startSession(payload as any);
+        } else {
+          throw e;
+        }
+      }
     } catch (e) {
-      setStatus(`Error: ${(e as Error).message}`);
+      const msg = (e as Error).message || String(e);
+      setStatus(`Error: ${msg}`);
+      setWarning(`Could not start the voice session: ${msg}`);
     }
   }
 
@@ -555,35 +638,6 @@ function HomeworkMode({
           <Send className="h-4 w-4" /> Send
         </button>
       </form>
-    </div>
-  );
-}
-
-function NoticeModal({ notice, onClose }: { notice: Notice; onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-6">
-      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-lg">
-        <div className="mb-2 flex items-start justify-between">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-primary">
-            <Bell className="h-4 w-4" /> {notice.kind.replace("_", " ")}
-          </div>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="text-muted-foreground hover:text-foreground"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <h3 className="text-lg font-semibold">{notice.title}</h3>
-        {notice.body && <p className="mt-2 text-sm text-muted-foreground">{notice.body}</p>}
-        <button
-          onClick={onClose}
-          className="mt-5 w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-        >
-          Got it
-        </button>
-      </div>
     </div>
   );
 }

@@ -2,7 +2,12 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireDevice } from "./device-auth.server";
-import { sttBase64, tts, getConversationToken } from "./elevenlabs.server";
+import {
+  sttBase64,
+  tts,
+  getConversationToken,
+  ensureAgentOverridesEnabled,
+} from "./elevenlabs.server";
 import {
   loadStudentContext,
   buildTutorSystemPrompt,
@@ -244,13 +249,17 @@ export const startVoiceConversation = createServerFn({ method: "POST" })
     }
     const cfg = await resolveConfigFor(student_id, data.subject_id ?? null);
     const ctx = await loadStudentContext(student_id, cfg);
-    const [token] = await Promise.all([getConversationToken(agentId)]);
+    const [token, overridesOk] = await Promise.all([
+      getConversationToken(agentId),
+      ensureAgentOverridesEnabled(agentId),
+    ]);
     return {
       agentId,
       token,
-      systemPrompt: buildTutorSystemPrompt(ctx),
-      firstMessage: buildFirstMessage(ctx),
-      language: cfg.language,
+      systemPrompt: overridesOk ? buildTutorSystemPrompt(ctx) : null,
+      firstMessage: overridesOk ? buildFirstMessage(ctx) : null,
+      language: overridesOk ? cfg.language : null,
+      overridesEnabled: overridesOk,
       warning: null,
     };
   });
