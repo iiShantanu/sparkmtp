@@ -380,6 +380,7 @@ function VoiceModeContent({ token, onBack }: { token: string; onBack: () => void
 
   async function begin() {
     setStatus("Requesting microphone…");
+    setWarning(null);
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true });
       const res = await start({ data: { device_token: token } });
@@ -389,19 +390,38 @@ function VoiceModeContent({ token, onBack }: { token: string; onBack: () => void
         return;
       }
       setStatus("Connecting…");
-      await conversation.startSession({
+      // Build session payload. Only include overrides if the server confirmed
+      // the agent has overrides enabled — otherwise ElevenLabs rejects the
+      // session immediately ("disconnects without saying anything").
+      const payload: Record<string, unknown> = {
         conversationToken: res.token,
         connectionType: "webrtc",
-        overrides: {
+      };
+      if (res.systemPrompt || res.firstMessage || res.language) {
+        payload.overrides = {
           agent: {
-            prompt: res.systemPrompt ? { prompt: res.systemPrompt } : undefined,
-            firstMessage: res.firstMessage ?? undefined,
-            language: res.language ?? undefined,
+            ...(res.systemPrompt ? { prompt: { prompt: res.systemPrompt } } : {}),
+            ...(res.firstMessage ? { firstMessage: res.firstMessage } : {}),
+            ...(res.language ? { language: res.language } : {}),
           },
-        },
-      } as any);
+        };
+      }
+      try {
+        await conversation.startSession(payload as any);
+      } catch (e) {
+        // If the agent rejected our overrides, retry one time without them.
+        if (payload.overrides) {
+          console.warn("startSession with overrides failed, retrying plain:", (e as Error).message);
+          delete payload.overrides;
+          await conversation.startSession(payload as any);
+        } else {
+          throw e;
+        }
+      }
     } catch (e) {
-      setStatus(`Error: ${(e as Error).message}`);
+      const msg = (e as Error).message || String(e);
+      setStatus(`Error: ${msg}`);
+      setWarning(`Could not start the voice session: ${msg}`);
     }
   }
 
