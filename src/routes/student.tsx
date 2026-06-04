@@ -842,8 +842,8 @@ function VoiceModeInner({
         conv.startSession({
           conversationToken: res.token,
           connectionType: "webrtc",
-          ...(overrides ? ({ overrides } as unknown as Record<string, unknown>) : {}),
-        });
+          ...(overrides ? { overrides } : {}),
+        } as Parameters<typeof conv.startSession>[0]);
       } catch (e) {
         setWarning((e as Error).message || "Could not start voice");
       } finally {
