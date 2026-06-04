@@ -44,6 +44,7 @@ import { Pomodoro } from "@/components/student/pomodoro";
 import { MusicPlayer } from "@/components/student/music-player";
 import { WifiPanel } from "@/components/student/wifi-panel";
 import { BluetoothPanel } from "@/components/student/bluetooth-panel";
+import { MessagesPanel } from "@/components/student/messages-panel";
 import { useOnline } from "@/hooks/use-online";
 
 const DISMISSED_KEY = "spark_dismissed_notices";
@@ -111,7 +112,7 @@ type VoiceMessage = {
   agent_response_event?: { agent_response?: string };
 };
 
-type Overlay = null | "voice" | "chat" | "quiz";
+type Overlay = null | "voice" | "chat" | "quiz" | "messages";
 type Tool = null | "music" | "pomodoro" | "wifi" | "bt";
 
 function StudentTablet() {
