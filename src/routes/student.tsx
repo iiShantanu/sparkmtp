@@ -369,9 +369,9 @@ function StudentTablet() {
           </h2>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
             <ToolTile icon={<Brain className="h-5 w-5" />} label="Quiz" onClick={() => setOverlay("quiz")} disabled={!online} />
+            <ToolTile icon={<MessageSquare className="h-5 w-5" />} label="Messages" onClick={() => setOverlay("messages")} disabled={!online} />
             <ToolTile icon={<MusicIcon className="h-5 w-5" />} label="Music" onClick={() => setTool("music")} />
             <ToolTile icon={<Timer className="h-5 w-5" />} label="Pomodoro" onClick={() => setTool("pomodoro")} />
-            <ToolTile icon={<ClockIcon className="h-5 w-5" />} label="Timer" onClick={() => setTool("pomodoro")} />
             <ToolTile icon={<Wifi className="h-5 w-5" />} label="Wi-Fi" onClick={() => setTool("wifi")} />
           </div>
         </section>
