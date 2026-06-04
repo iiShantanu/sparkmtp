@@ -230,6 +230,7 @@ export const startVoiceConversation = createServerFn({ method: "POST" })
       .object({
         device_token: z.string().min(10),
         subject_id: z.string().uuid().nullable().optional(),
+        homework_id: z.string().uuid().nullable().optional(),
       })
       .parse(i),
   )
@@ -247,20 +248,57 @@ export const startVoiceConversation = createServerFn({ method: "POST" })
           "ELEVENLABS_AGENT_ID is not set. Create a Conversational AI agent in ElevenLabs and add the agent id as a secret to enable live voice chat.",
       };
     }
-    const cfg = await resolveConfigFor(student_id, data.subject_id ?? null);
+    let subjectId = data.subject_id ?? null;
+    let homework: any = null;
+    if (data.homework_id) {
+      const { data: hw } = await supabaseAdmin
+        .from("homework")
+        .select("id, title, instructions, subject, subject_id, class_id, difficulty")
+        .eq("id", data.homework_id)
+        .maybeSingle();
+      const { data: s } = await supabaseAdmin
+        .from("students")
+        .select("class_id")
+        .eq("id", student_id)
+        .single();
+      if (hw && (s as any)?.class_id === (hw as any).class_id) {
+        homework = hw;
+        subjectId = (hw as any).subject_id ?? subjectId;
+      }
+    }
+    const cfg = await resolveConfigFor(student_id, subjectId);
     const ctx = await loadStudentContext(student_id, cfg);
     const [token, overridesOk] = await Promise.all([
       getConversationToken(agentId),
       ensureAgentOverridesEnabled(agentId),
     ]);
+    let systemPrompt: string | null = overridesOk ? buildTutorSystemPrompt(ctx) : null;
+    let firstMessage: string | null = overridesOk ? buildFirstMessage(ctx) : null;
+    if (overridesOk && homework) {
+      systemPrompt = [
+        buildTutorSystemPrompt(ctx),
+        ``,
+        `HOMEWORK MODE — the student is working on the assignment below.`,
+        `Title: ${homework.title}${homework.subject ? ` (${homework.subject})` : ""}`,
+        homework.instructions ? `Teacher's instructions: ${homework.instructions}` : ``,
+        `Guide the student step-by-step. Ask one short question at a time, give hints, never give the final answer outright.`,
+        `When the student seems to have finished, say "Great job — tap Mark done when you're ready." and stop.`,
+      ]
+        .filter(Boolean)
+        .join("\n");
+      firstMessage = `[emotion:friendly] Let's work on "${homework.title}". Read me the first question or tell me where you're stuck.`;
+    }
     return {
       agentId,
       token,
-      systemPrompt: overridesOk ? buildTutorSystemPrompt(ctx) : null,
-      firstMessage: overridesOk ? buildFirstMessage(ctx) : null,
+      systemPrompt,
+      firstMessage,
       language: overridesOk ? cfg.language : null,
       overridesEnabled: overridesOk,
       warning: null,
+      homework: homework
+        ? { id: homework.id, title: homework.title, subject: homework.subject }
+        : null,
     };
   });
 
@@ -271,13 +309,38 @@ export const runSparkTextTurn = createServerFn({ method: "POST" })
         device_token: z.string().min(10),
         text: z.string().min(1).max(2000),
         subject_id: z.string().uuid().nullable().optional(),
+        homework_id: z.string().uuid().nullable().optional(),
       })
       .parse(i),
   )
   .handler(async ({ data }) => {
     const { student_id } = await requireDevice(data.device_token);
-    const cfg = await resolveConfigFor(student_id, data.subject_id ?? null);
-    const { emotion, reply } = await generateSparkReply(buildSystemPrompt(cfg), data.text);
+    let subjectId = data.subject_id ?? null;
+    let homework: any = null;
+    if (data.homework_id) {
+      const { data: hw } = await supabaseAdmin
+        .from("homework")
+        .select("id, title, instructions, subject, subject_id, class_id")
+        .eq("id", data.homework_id)
+        .maybeSingle();
+      const { data: s } = await supabaseAdmin
+        .from("students")
+        .select("class_id")
+        .eq("id", student_id)
+        .single();
+      if (hw && (s as any)?.class_id === (hw as any).class_id) {
+        homework = hw;
+        subjectId = (hw as any).subject_id ?? subjectId;
+      }
+    }
+    const cfg = await resolveConfigFor(student_id, subjectId);
+    const system = homework
+      ? buildSystemPrompt(cfg, {
+          homework_title: homework.title,
+          instructions: homework.instructions,
+        })
+      : buildSystemPrompt(cfg);
+    const { emotion, reply } = await generateSparkReply(system, data.text);
     let audio: string | null = null;
     try {
       if (process.env.ELEVENLABS_API_KEY) {
@@ -289,7 +352,8 @@ export const runSparkTextTurn = createServerFn({ method: "POST" })
 
     await supabaseAdmin.from("interaction_logs").insert({
       student_id,
-      subject: null,
+      subject: homework?.subject ?? null,
+      homework_id: homework?.id ?? null,
       question: data.text,
       ai_response: reply,
       transcript: data.text,
