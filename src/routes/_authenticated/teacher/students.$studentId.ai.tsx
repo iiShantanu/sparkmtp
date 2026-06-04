@@ -9,6 +9,7 @@ import {
   getStudentAiConfig,
   upsertStudentAiConfig,
 } from "@/lib/teacher.functions";
+import { teacherSetGoal } from "@/lib/student-extras.functions";
 
 type Mode = "guided" | "direct" | "hint_only" | "step_by_step";
 
@@ -117,6 +118,7 @@ function StudentAiConfigPage() {
             : "Using your default configuration. Save to create a per-student override."
         }
       />
+      <TodaysGoalCard studentId={studentId} />
       <form onSubmit={submit} className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
         <div className="rounded-xl border border-border bg-card p-5">
           <label className="text-sm font-semibold">Custom prompt</label>
