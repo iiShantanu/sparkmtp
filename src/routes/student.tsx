@@ -483,6 +483,11 @@ function StudentTablet() {
           <QuizMode token={token} onClose={() => setOverlay(null)} />
         </OverlayShell>
       )}
+      {overlay === "messages" && (
+        <OverlayShell title="Messages" onClose={() => setOverlay(null)}>
+          <MessagesPanel token={token!} />
+        </OverlayShell>
+      )}
 
       {noticesOpen && (
         <NoticesPanel
