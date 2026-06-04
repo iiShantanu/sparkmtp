@@ -832,6 +832,7 @@ function VoiceMode({
   }, [autoStart, begin]);
 
   useEffect(() => {
+    activeRef.current = true;
     return () => {
       activeRef.current = false;
       window.speechSynthesis?.cancel();
@@ -842,8 +843,18 @@ function VoiceMode({
       }
       const lines = transcriptRef.current.map((m) => `${m.role}: ${m.text}`).join("\n");
       if (lines.trim().length > 0) {
-        summarize({ data: { device_token: token, transcript: lines } }).catch(() => {});
+        summarizeRef.current?.(lines);
       }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keep latest summarize callback in a ref so the unmount-only effect above
+  // never re-runs when useServerFn returns a fresh function reference.
+  const summarizeRef = useRef<(lines: string) => void>(() => {});
+  useEffect(() => {
+    summarizeRef.current = (lines: string) => {
+      summarize({ data: { device_token: token, transcript: lines } }).catch(() => {});
     };
   }, [summarize, token]);
 
@@ -864,6 +875,12 @@ function VoiceMode({
           audio_mime: audio.mime,
         },
       });
+      if (!res.transcript || !res.transcript.trim()) {
+        setAgentEmotion("friendly");
+        setStatus("I didn't catch that — tap Talk again and speak a bit louder.");
+        setWarning("No speech detected. Try again.");
+        return;
+      }
       appendLine("student", res.transcript || "(voice answer)");
       appendLine("spark", res.reply);
       await speakReply(res.reply, (res.emotion as SparkEmotion) ?? "friendly", res.audio_base64);
@@ -939,7 +956,23 @@ function VoiceMode({
             </button>
           ) : (
             <button
-              onClick={begin}
+              onClick={async () => {
+                // After Spark has already greeted once, "Talk again" should
+                // start listening for the student's next answer — NOT replay
+                // the initial greeting.
+                if (startedRef.current && !warning && !status.startsWith("Error")) {
+                  try {
+                    setWarning(null);
+                    await startListening();
+                  } catch (e) {
+                    setWarning((e as Error).message);
+                    setAgentEmotion("error");
+                  }
+                  return;
+                }
+                startedRef.current = true;
+                begin();
+              }}
               disabled={busy}
               className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
@@ -1151,6 +1184,7 @@ function QuizMode({ token, onClose }: { token: string; onClose: () => void }) {
   );
 
   useEffect(() => {
+    activeRef.current = true;
     return () => {
       activeRef.current = false;
       window.speechSynthesis?.cancel();
