@@ -31,6 +31,7 @@ import { Pomodoro } from "@/components/student/pomodoro";
 import { MusicPlayer } from "@/components/student/music-player";
 import { WifiPanel } from "@/components/student/wifi-panel";
 import { BluetoothPanel } from "@/components/student/bluetooth-panel";
+import { useOnline } from "@/hooks/use-online";
 
 const DISMISSED_KEY = "spark_dismissed_notices";
 function loadDismissed(): Set<string> {
@@ -87,6 +88,7 @@ type VoiceMessage = {
 function StudentTablet() {
   const navigate = useNavigate();
   const [token, setToken] = useState<string | null>(null);
+  const online = useOnline();
   const fetchSession = useServerFn(getStudentSession);
   const heartbeat = useServerFn(deviceHeartbeat);
   const ack = useServerFn(ackNotice);
@@ -110,6 +112,7 @@ function StudentTablet() {
   }, [navigate]);
 
   async function refresh(t: string) {
+    if (typeof navigator !== "undefined" && !navigator.onLine) return;
     try {
       const data = await fetchSession({ data: { device_token: t } });
       setSession(data as StudentSession);
@@ -128,17 +131,18 @@ function StudentTablet() {
 
   useEffect(() => {
     if (!token) return;
-    refresh(token);
+    if (online) refresh(token);
     const interval = setInterval(() => {
+      if (!navigator.onLine) return;
       refresh(token);
       heartbeat({ data: { device_token: token } }).catch(() => {});
     }, 30_000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [token, online]);
 
   if (!token) return null;
-  if (err && !session) {
+  if (err && !session && online) {
     return (
       <main className="grid min-h-screen place-items-center p-6 text-center">
         <p className="text-sm text-destructive">{err}</p>
@@ -147,8 +151,18 @@ function StudentTablet() {
   }
   if (!session) {
     return (
-      <main className="grid min-h-screen place-items-center">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <main className="grid min-h-screen place-items-center p-6 text-center">
+        {online ? (
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        ) : (
+          <div className="max-w-sm space-y-2">
+            <p className="text-sm font-medium">You're offline.</p>
+            <p className="text-xs text-muted-foreground">
+              Connect to Wi-Fi to load your homework and notices. Music, Pomodoro, and the clock
+              still work offline.
+            </p>
+          </div>
+        )}
       </main>
     );
   }
@@ -185,6 +199,11 @@ function StudentTablet() {
         </div>
         <div className="flex items-center gap-3">
           <Clock />
+          {!online && (
+            <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-600">
+              Offline
+            </span>
+          )}
           <button onClick={() => setTool("wifi")} className="rounded-full border border-border p-2 text-muted-foreground hover:bg-accent hover:text-foreground" aria-label="Wi-Fi">
             <Wifi className="h-4 w-4" />
           </button>
@@ -211,6 +230,7 @@ function StudentTablet() {
         {view === "home" && (
           <Home
             session={session}
+            online={online}
             onTalk={() => setView("voice")}
             onHomework={(h) => {
               setActiveHomework(h);
