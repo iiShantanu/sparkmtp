@@ -8,7 +8,6 @@ import {
   BookOpen,
   Brain,
   CheckCircle2,
-  Clock as ClockIcon,
   Flame,
   Loader2,
   MessageSquare,
@@ -44,6 +43,7 @@ import { Pomodoro } from "@/components/student/pomodoro";
 import { MusicPlayer } from "@/components/student/music-player";
 import { WifiPanel } from "@/components/student/wifi-panel";
 import { BluetoothPanel } from "@/components/student/bluetooth-panel";
+import { MessagesPanel } from "@/components/student/messages-panel";
 import { useOnline } from "@/hooks/use-online";
 
 const DISMISSED_KEY = "spark_dismissed_notices";
@@ -111,7 +111,7 @@ type VoiceMessage = {
   agent_response_event?: { agent_response?: string };
 };
 
-type Overlay = null | "voice" | "chat" | "quiz";
+type Overlay = null | "voice" | "chat" | "quiz" | "messages";
 type Tool = null | "music" | "pomodoro" | "wifi" | "bt";
 
 function StudentTablet() {
@@ -309,7 +309,18 @@ function StudentTablet() {
         {/* Talk + Chat CTAs */}
         <section className="grid grid-cols-2 gap-3">
           <button
-            onClick={() => setOverlay("voice")}
+            onClick={async () => {
+              // Request mic permission as part of the user gesture so the
+              // auto-start inside VoiceMode doesn't need a second tap.
+              try {
+                if (typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
+                  await navigator.mediaDevices.getUserMedia({ audio: true });
+                }
+              } catch {
+                // Continue anyway — VoiceMode will surface the error.
+              }
+              setOverlay("voice");
+            }}
             disabled={!online}
             className="group flex flex-col items-center gap-3 rounded-2xl bg-gradient-to-br from-primary to-primary/70 p-5 text-primary-foreground shadow-sm hover:from-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
           >
@@ -357,9 +368,9 @@ function StudentTablet() {
           </h2>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
             <ToolTile icon={<Brain className="h-5 w-5" />} label="Quiz" onClick={() => setOverlay("quiz")} disabled={!online} />
+            <ToolTile icon={<MessageSquare className="h-5 w-5" />} label="Messages" onClick={() => setOverlay("messages")} disabled={!online} />
             <ToolTile icon={<MusicIcon className="h-5 w-5" />} label="Music" onClick={() => setTool("music")} />
             <ToolTile icon={<Timer className="h-5 w-5" />} label="Pomodoro" onClick={() => setTool("pomodoro")} />
-            <ToolTile icon={<ClockIcon className="h-5 w-5" />} label="Timer" onClick={() => setTool("pomodoro")} />
             <ToolTile icon={<Wifi className="h-5 w-5" />} label="Wi-Fi" onClick={() => setTool("wifi")} />
           </div>
         </section>
@@ -469,6 +480,11 @@ function StudentTablet() {
       {overlay === "quiz" && (
         <OverlayShell title="Quiz with Spark" onClose={() => setOverlay(null)}>
           <QuizMode token={token} onClose={() => setOverlay(null)} />
+        </OverlayShell>
+      )}
+      {overlay === "messages" && (
+        <OverlayShell title="Messages" onClose={() => setOverlay(null)}>
+          <MessagesPanel token={token!} />
         </OverlayShell>
       )}
 
@@ -878,18 +894,22 @@ function VoiceModeContent({
               ? "Spark is speaking…"
               : "Listening…"
             : status === "Idle"
-              ? "Tap Start to talk"
+              ? autoStart
+                ? "Connecting to Spark…"
+                : "Tap Start to talk"
               : status}
         </div>
         {warning && <p className="mt-3 max-w-md text-sm text-amber-600">{warning}</p>}
         <div className="mt-4 flex gap-3">
           {!connected ? (
-            <button
-              onClick={begin}
-              className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-            >
-              <Mic className="h-4 w-4" /> Start
-            </button>
+            (!autoStart || warning || status.startsWith("Error")) && (
+              <button
+                onClick={begin}
+                className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              >
+                <Mic className="h-4 w-4" /> {warning || status.startsWith("Error") ? "Try again" : "Start"}
+              </button>
+            )
           ) : (
             <button
               onClick={() => conversation.endSession()}

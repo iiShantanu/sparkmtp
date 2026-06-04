@@ -25,6 +25,7 @@ import { Route as AuthenticatedParentIndexRouteImport } from './routes/_authenti
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedTeacherStudentsRouteImport } from './routes/_authenticated/teacher/students'
 import { Route as AuthenticatedTeacherNoticesRouteImport } from './routes/_authenticated/teacher/notices'
+import { Route as AuthenticatedTeacherMessagesRouteImport } from './routes/_authenticated/teacher/messages'
 import { Route as AuthenticatedTeacherHomeworkRouteImport } from './routes/_authenticated/teacher/homework'
 import { Route as AuthenticatedTeacherDevicesRouteImport } from './routes/_authenticated/teacher/devices'
 import { Route as AuthenticatedTeacherAiSubjectsRouteImport } from './routes/_authenticated/teacher/ai-subjects'
@@ -120,6 +121,12 @@ const AuthenticatedTeacherNoticesRoute =
   AuthenticatedTeacherNoticesRouteImport.update({
     id: '/notices',
     path: '/notices',
+    getParentRoute: () => AuthenticatedTeacherRoute,
+  } as any)
+const AuthenticatedTeacherMessagesRoute =
+  AuthenticatedTeacherMessagesRouteImport.update({
+    id: '/messages',
+    path: '/messages',
     getParentRoute: () => AuthenticatedTeacherRoute,
   } as any)
 const AuthenticatedTeacherHomeworkRoute =
@@ -222,6 +229,7 @@ export interface FileRoutesByFullPath {
   '/teacher/ai-subjects': typeof AuthenticatedTeacherAiSubjectsRoute
   '/teacher/devices': typeof AuthenticatedTeacherDevicesRoute
   '/teacher/homework': typeof AuthenticatedTeacherHomeworkRoute
+  '/teacher/messages': typeof AuthenticatedTeacherMessagesRoute
   '/teacher/notices': typeof AuthenticatedTeacherNoticesRoute
   '/teacher/students': typeof AuthenticatedTeacherStudentsRouteWithChildren
   '/admin/': typeof AuthenticatedAdminIndexRoute
@@ -249,6 +257,7 @@ export interface FileRoutesByTo {
   '/teacher/ai-subjects': typeof AuthenticatedTeacherAiSubjectsRoute
   '/teacher/devices': typeof AuthenticatedTeacherDevicesRoute
   '/teacher/homework': typeof AuthenticatedTeacherHomeworkRoute
+  '/teacher/messages': typeof AuthenticatedTeacherMessagesRoute
   '/teacher/notices': typeof AuthenticatedTeacherNoticesRoute
   '/teacher/students': typeof AuthenticatedTeacherStudentsRouteWithChildren
   '/admin': typeof AuthenticatedAdminIndexRoute
@@ -281,6 +290,7 @@ export interface FileRoutesById {
   '/_authenticated/teacher/ai-subjects': typeof AuthenticatedTeacherAiSubjectsRoute
   '/_authenticated/teacher/devices': typeof AuthenticatedTeacherDevicesRoute
   '/_authenticated/teacher/homework': typeof AuthenticatedTeacherHomeworkRoute
+  '/_authenticated/teacher/messages': typeof AuthenticatedTeacherMessagesRoute
   '/_authenticated/teacher/notices': typeof AuthenticatedTeacherNoticesRoute
   '/_authenticated/teacher/students': typeof AuthenticatedTeacherStudentsRouteWithChildren
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
@@ -313,6 +323,7 @@ export interface FileRouteTypes {
     | '/teacher/ai-subjects'
     | '/teacher/devices'
     | '/teacher/homework'
+    | '/teacher/messages'
     | '/teacher/notices'
     | '/teacher/students'
     | '/admin/'
@@ -340,6 +351,7 @@ export interface FileRouteTypes {
     | '/teacher/ai-subjects'
     | '/teacher/devices'
     | '/teacher/homework'
+    | '/teacher/messages'
     | '/teacher/notices'
     | '/teacher/students'
     | '/admin'
@@ -371,6 +383,7 @@ export interface FileRouteTypes {
     | '/_authenticated/teacher/ai-subjects'
     | '/_authenticated/teacher/devices'
     | '/_authenticated/teacher/homework'
+    | '/_authenticated/teacher/messages'
     | '/_authenticated/teacher/notices'
     | '/_authenticated/teacher/students'
     | '/_authenticated/admin/'
@@ -502,6 +515,13 @@ declare module '@tanstack/react-router' {
       path: '/notices'
       fullPath: '/teacher/notices'
       preLoaderRoute: typeof AuthenticatedTeacherNoticesRouteImport
+      parentRoute: typeof AuthenticatedTeacherRoute
+    }
+    '/_authenticated/teacher/messages': {
+      id: '/_authenticated/teacher/messages'
+      path: '/messages'
+      fullPath: '/teacher/messages'
+      preLoaderRoute: typeof AuthenticatedTeacherMessagesRouteImport
       parentRoute: typeof AuthenticatedTeacherRoute
     }
     '/_authenticated/teacher/homework': {
@@ -656,6 +676,7 @@ interface AuthenticatedTeacherRouteChildren {
   AuthenticatedTeacherAiSubjectsRoute: typeof AuthenticatedTeacherAiSubjectsRoute
   AuthenticatedTeacherDevicesRoute: typeof AuthenticatedTeacherDevicesRoute
   AuthenticatedTeacherHomeworkRoute: typeof AuthenticatedTeacherHomeworkRoute
+  AuthenticatedTeacherMessagesRoute: typeof AuthenticatedTeacherMessagesRoute
   AuthenticatedTeacherNoticesRoute: typeof AuthenticatedTeacherNoticesRoute
   AuthenticatedTeacherStudentsRoute: typeof AuthenticatedTeacherStudentsRouteWithChildren
   AuthenticatedTeacherIndexRoute: typeof AuthenticatedTeacherIndexRoute
@@ -666,6 +687,7 @@ const AuthenticatedTeacherRouteChildren: AuthenticatedTeacherRouteChildren = {
   AuthenticatedTeacherAiSubjectsRoute: AuthenticatedTeacherAiSubjectsRoute,
   AuthenticatedTeacherDevicesRoute: AuthenticatedTeacherDevicesRoute,
   AuthenticatedTeacherHomeworkRoute: AuthenticatedTeacherHomeworkRoute,
+  AuthenticatedTeacherMessagesRoute: AuthenticatedTeacherMessagesRoute,
   AuthenticatedTeacherNoticesRoute: AuthenticatedTeacherNoticesRoute,
   AuthenticatedTeacherStudentsRoute:
     AuthenticatedTeacherStudentsRouteWithChildren,

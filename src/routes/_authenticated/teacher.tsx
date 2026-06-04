@@ -1,6 +1,6 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { LayoutDashboard, Users, BookOpen, Bot, Bell, Tablet, Library } from "lucide-react";
+import { LayoutDashboard, Users, BookOpen, Bot, Bell, Tablet, Library, MessageSquare } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { meQueryOptions } from "@/routes/_authenticated";
 
@@ -17,6 +17,7 @@ function TeacherLayout() {
     { to: "/teacher/ai", label: "AI default", icon: <Bot className="h-4 w-4" /> },
     { to: "/teacher/ai-subjects", label: "AI per subject", icon: <Library className="h-4 w-4" /> },
     { to: "/teacher/notices", label: "Reminders", icon: <Bell className="h-4 w-4" /> },
+    { to: "/teacher/messages", label: "Messages", icon: <MessageSquare className="h-4 w-4" /> },
     { to: "/teacher/devices", label: "Devices", icon: <Tablet className="h-4 w-4" /> },
   ];
   return (
