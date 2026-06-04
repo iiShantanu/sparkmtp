@@ -8,7 +8,6 @@ import {
   BookOpen,
   Brain,
   CheckCircle2,
-  Clock as ClockIcon,
   Flame,
   Loader2,
   MessageSquare,
