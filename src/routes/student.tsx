@@ -245,10 +245,12 @@ function Home({
   session,
   onTalk,
   onHomework,
+  onTool,
 }: {
   session: StudentSession;
   onTalk: () => void;
   onHomework: (h: Homework) => void;
+  onTool: (t: "music" | "pomodoro" | "wifi" | "bt") => void;
 }) {
   return (
     <div className="space-y-6">
@@ -264,6 +266,18 @@ function Home({
           </div>
         </div>
       </button>
+
+      <section>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          Tools
+        </h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <ToolTile icon={<MusicIcon className="h-5 w-5" />} label="Music" onClick={() => onTool("music")} />
+          <ToolTile icon={<Timer className="h-5 w-5" />} label="Pomodoro" onClick={() => onTool("pomodoro")} />
+          <ToolTile icon={<Wifi className="h-5 w-5" />} label="Wi-Fi" onClick={() => onTool("wifi")} />
+          <ToolTile icon={<Bluetooth className="h-5 w-5" />} label="Bluetooth" onClick={() => onTool("bt")} />
+        </div>
+      </section>
 
       <section>
         <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
@@ -297,6 +311,18 @@ function Home({
         )}
       </section>
     </div>
+  );
+}
+
+function ToolTile({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex flex-col items-center gap-2 rounded-xl border border-border bg-card p-4 text-sm font-medium transition hover:border-primary hover:bg-accent"
+    >
+      <span className="grid h-10 w-10 place-items-center rounded-lg bg-primary/10 text-primary">{icon}</span>
+      {label}
+    </button>
   );
 }
 
