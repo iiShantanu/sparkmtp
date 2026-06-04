@@ -614,14 +614,30 @@ function VoiceMode({
   token,
   autoStart,
   onClose,
+  homeworkOptions,
+  activeHomework,
+  onPickHomework,
+  onMarkHomeworkDone,
 }: {
   token: string;
   autoStart?: boolean;
   onClose: () => void;
+  homeworkOptions: Homework[];
+  activeHomework: Homework | null;
+  onPickHomework: (h: Homework | null) => void;
+  onMarkHomeworkDone: () => void | Promise<void>;
 }) {
   return (
     <ConversationProvider>
-      <VoiceModeContent token={token} autoStart={autoStart} onClose={onClose} />
+      <VoiceModeContent
+        token={token}
+        autoStart={autoStart}
+        onClose={onClose}
+        homeworkOptions={homeworkOptions}
+        activeHomework={activeHomework}
+        onPickHomework={onPickHomework}
+        onMarkHomeworkDone={onMarkHomeworkDone}
+      />
     </ConversationProvider>
   );
 }
@@ -630,10 +646,18 @@ function VoiceModeContent({
   token,
   autoStart,
   onClose: _onClose,
+  homeworkOptions,
+  activeHomework,
+  onPickHomework,
+  onMarkHomeworkDone,
 }: {
   token: string;
   autoStart?: boolean;
   onClose: () => void;
+  homeworkOptions: Homework[];
+  activeHomework: Homework | null;
+  onPickHomework: (h: Homework | null) => void;
+  onMarkHomeworkDone: () => void | Promise<void>;
 }) {
   const start = useServerFn(startVoiceConversation);
   const textTurn = useServerFn(runSparkTextTurn);
@@ -681,7 +705,12 @@ function VoiceModeContent({
     setWarning(null);
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true });
-      const res = await start({ data: { device_token: token } });
+      const res = await start({
+        data: {
+          device_token: token,
+          homework_id: activeHomework?.id ?? null,
+        },
+      });
       if (!res.token || !res.agentId) {
         setWarning(res.warning ?? "Voice agent is not configured yet.");
         setStatus("Idle");
@@ -717,7 +746,7 @@ function VoiceModeContent({
       setStatus(`Error: ${msg}`);
       setWarning(`Could not start: ${msg}`);
     }
-  }, [conversation, start, token]);
+  }, [conversation, start, token, activeHomework]);
 
   useEffect(() => {
     if (autoStart && !startedRef.current) {
@@ -735,7 +764,13 @@ function VoiceModeContent({
     setAgentEmotion("thinking");
     setTranscript((t) => [...t, { role: "you", text }]);
     try {
-      const res = await textTurn({ data: { device_token: token, text } });
+      const res = await textTurn({
+        data: {
+          device_token: token,
+          text,
+          homework_id: activeHomework?.id ?? null,
+        },
+      });
       setAgentEmotion((res.emotion as SparkEmotion) ?? "friendly");
       setTranscript((t) => [...t, { role: "spark", text: res.reply }]);
       if (res.audio_base64) {
@@ -767,6 +802,12 @@ function VoiceModeContent({
 
   return (
     <div className="space-y-4 p-4">
+      <HomeworkPickerBar
+        homeworkOptions={homeworkOptions}
+        activeHomework={activeHomework}
+        onPickHomework={onPickHomework}
+        onMarkHomeworkDone={onMarkHomeworkDone}
+      />
       <div className="grid place-items-center rounded-2xl border border-border bg-background p-6 text-center">
         <SparkAvatar emotion={liveEmotion} size={180} />
         <div className="mt-4 text-lg font-semibold">
