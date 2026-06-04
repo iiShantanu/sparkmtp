@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { ClientOnly } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bell,
   Bluetooth,
@@ -24,9 +25,7 @@ import {
   runHomeworkTurn,
   runQuizVoiceTurn,
   runSparkTextTurn,
-  startVoiceConversation,
   ackNotice,
-  summarizeVoiceSession,
 } from "@/lib/student-runtime.functions";
 import {
   getOrCreateTodayGoal,
@@ -45,7 +44,8 @@ import { WifiPanel } from "@/components/student/wifi-panel";
 import { BluetoothPanel } from "@/components/student/bluetooth-panel";
 import { MessagesPanel } from "@/components/student/messages-panel";
 import { useOnline } from "@/hooks/use-online";
-import { ConversationProvider, useConversation } from "@elevenlabs/react";
+
+const VoiceMode = lazy(() => import("@/components/student/voice-mode"));
 
 const DISMISSED_KEY = "spark_dismissed_notices";
 function loadDismissed(): Set<string> {
