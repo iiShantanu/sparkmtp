@@ -2,7 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import { Music, Pause, Play, Plus, SkipBack, SkipForward, Trash2, X } from "lucide-react";
 import { musicStore, type Track } from "@/lib/music-store";
 
+type CuratedCategory = "lofi" | "instrumental" | "nature";
+const CURATED: Record<CuratedCategory, Array<{ name: string; url: string }>> = {
+  lofi: [],
+  instrumental: [],
+  nature: [],
+};
+
 export function MusicPlayer({ onClose }: { onClose: () => void }) {
+  const [tab, setTab] = useState<"curated" | "library">("curated");
+  const [category, setCategory] = useState<CuratedCategory>("lofi");
   const [tracks, setTracks] = useState<Track[]>([]);
   const [idx, setIdx] = useState<number>(-1);
   const [playing, setPlaying] = useState(false);
@@ -78,6 +87,18 @@ export function MusicPlayer({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
+        <div className="mb-3 flex gap-2 text-xs">
+          {(["curated", "library"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`rounded-full px-3 py-1 ${tab === t ? "bg-primary text-primary-foreground" : "bg-accent"}`}
+            >
+              {t === "curated" ? "Curated · teacher-approved" : "My uploads"}
+            </button>
+          ))}
+        </div>
+
         <div className="mb-4 rounded-xl border border-border bg-background p-4">
           <div className="mb-2 truncate text-sm font-medium">
             {idx >= 0 ? tracks[idx]?.name : "No track selected"}
@@ -107,39 +128,61 @@ export function MusicPlayer({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
-        <label className="mb-3 inline-flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-border px-3 py-2 text-sm hover:bg-accent">
-          <Plus className="h-4 w-4" /> Add music
-          <input type="file" accept="audio/*" multiple onChange={onPick} className="hidden" />
-        </label>
-
-        <ul className="max-h-64 space-y-1 overflow-y-auto">
-          {tracks.length === 0 && (
-            <li className="rounded-lg border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
-              Your music library is empty. Add an MP3 to get started.
-            </li>
-          )}
-          {tracks.map((t, i) => (
-            <li
-              key={t.id}
-              className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-sm ${
-                i === idx ? "bg-primary/10 text-primary" : "hover:bg-accent"
-              }`}
-            >
-              <button
-                onClick={() => {
-                  setIdx(i);
-                  setPlaying(true);
-                }}
-                className="flex-1 truncate text-left"
-              >
-                {t.name}
-              </button>
-              <button onClick={() => del(t.id)} className="text-muted-foreground hover:text-destructive">
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </li>
-          ))}
-        </ul>
+        {tab === "curated" ? (
+          <div>
+            <div className="mb-2 flex gap-2 text-xs">
+              {(Object.keys(CURATED) as CuratedCategory[]).map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setCategory(c)}
+                  className={`rounded-md px-2 py-1 capitalize ${
+                    category === c ? "bg-primary text-primary-foreground" : "bg-accent"
+                  }`}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+            <div className="rounded-lg border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
+              Teacher-approved {category} tracks will appear here. Ask your teacher to upload tracks, or add your own from "My uploads".
+            </div>
+          </div>
+        ) : (
+          <>
+            <label className="mb-3 inline-flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-border px-3 py-2 text-sm hover:bg-accent">
+              <Plus className="h-4 w-4" /> Add music
+              <input type="file" accept="audio/*" multiple onChange={onPick} className="hidden" />
+            </label>
+            <ul className="max-h-64 space-y-1 overflow-y-auto">
+              {tracks.length === 0 && (
+                <li className="rounded-lg border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
+                  Your music library is empty. Add an MP3 to get started.
+                </li>
+              )}
+              {tracks.map((t, i) => (
+                <li
+                  key={t.id}
+                  className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-sm ${
+                    i === idx ? "bg-primary/10 text-primary" : "hover:bg-accent"
+                  }`}
+                >
+                  <button
+                    onClick={() => {
+                      setIdx(i);
+                      setPlaying(true);
+                    }}
+                    className="flex-1 truncate text-left"
+                  >
+                    {t.name}
+                  </button>
+                  <button onClick={() => del(t.id)} className="text-muted-foreground hover:text-destructive">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </div>
     </div>
   );
