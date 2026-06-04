@@ -876,7 +876,21 @@ function VoiceModeContent({
 // =====================================================================
 // Chat mode (text-only)
 // =====================================================================
-function ChatMode({ token, seed }: { token: string; seed: string }) {
+function ChatMode({
+  token,
+  seed,
+  homeworkOptions,
+  activeHomework,
+  onPickHomework,
+  onMarkHomeworkDone,
+}: {
+  token: string;
+  seed: string;
+  homeworkOptions: Homework[];
+  activeHomework: Homework | null;
+  onPickHomework: (h: Homework | null) => void;
+  onMarkHomeworkDone: () => void | Promise<void>;
+}) {
   const turn = useServerFn(runSparkTextTurn);
   const [input, setInput] = useState(seed);
   const [busy, setBusy] = useState(false);
@@ -900,7 +914,9 @@ function ChatMode({ token, seed }: { token: string; seed: string }) {
     setErr(null);
     setMessages((m) => [...m, { role: "you", text }]);
     try {
-      const res = await turn({ data: { device_token: token, text } });
+      const res = await turn({
+        data: { device_token: token, text, homework_id: activeHomework?.id ?? null },
+      });
       setMessages((m) => [...m, { role: "spark", text: res.reply, emotion: res.emotion as SparkEmotion }]);
     } catch (e) {
       setErr((e as Error).message);
@@ -912,10 +928,20 @@ function ChatMode({ token, seed }: { token: string; seed: string }) {
 
   return (
     <div className="flex h-[70vh] flex-col">
+      <div className="border-b border-border p-3">
+        <HomeworkPickerBar
+          homeworkOptions={homeworkOptions}
+          activeHomework={activeHomework}
+          onPickHomework={onPickHomework}
+          onMarkHomeworkDone={onMarkHomeworkDone}
+        />
+      </div>
       <div ref={scrollerRef} className="flex-1 space-y-3 overflow-y-auto p-4">
         {messages.length === 0 && (
           <p className="text-center text-sm text-muted-foreground">
-            Ask Spark anything — about your homework, a topic you're stuck on, or what to study next.
+            {activeHomework
+              ? `Ask Spark for help with "${activeHomework.title}". Spark will guide you step-by-step.`
+              : "Ask Spark anything — about your homework, a topic you're stuck on, or what to study next."}
           </p>
         )}
         {messages.map((m, i) =>
