@@ -310,7 +310,18 @@ function StudentTablet() {
         {/* Talk + Chat CTAs */}
         <section className="grid grid-cols-2 gap-3">
           <button
-            onClick={() => setOverlay("voice")}
+            onClick={async () => {
+              // Request mic permission as part of the user gesture so the
+              // auto-start inside VoiceMode doesn't need a second tap.
+              try {
+                if (typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
+                  await navigator.mediaDevices.getUserMedia({ audio: true });
+                }
+              } catch {
+                // Continue anyway — VoiceMode will surface the error.
+              }
+              setOverlay("voice");
+            }}
             disabled={!online}
             className="group flex flex-col items-center gap-3 rounded-2xl bg-gradient-to-br from-primary to-primary/70 p-5 text-primary-foreground shadow-sm hover:from-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
           >
