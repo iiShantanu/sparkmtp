@@ -418,30 +418,39 @@ function StudentTablet() {
             setActiveHomework(null);
           }}
         >
-          <VoiceMode
-            token={token}
-            autoStart
-            onClose={() => {
-              setOverlay(null);
-              setActiveHomework(null);
-            }}
-            homeworkOptions={session.homework}
-            activeHomework={activeHomework}
-            onPickHomework={setActiveHomework}
-            onMarkHomeworkDone={async () => {
-              if (!activeHomework) return;
-              try {
-                await completeHomework({
-                  data: { device_token: token!, homework_id: activeHomework.id },
-                });
-                const s = await fetchStreak({ data: { device_token: token! } });
-                setStreak(s as Streak);
-                setActiveHomework(null);
-              } catch (e) {
-                console.warn("mark homework done failed:", (e as Error).message);
-              }
-            }}
-          />
+          <ClientOnly fallback={<div className="p-6 text-center text-sm text-muted-foreground">Loading voice…</div>}>
+            <Suspense fallback={<div className="p-6 text-center text-sm text-muted-foreground">Loading voice…</div>}>
+              <VoiceMode
+                token={token}
+                autoStart
+                onClose={() => {
+                  setOverlay(null);
+                  setActiveHomework(null);
+                }}
+                activeHomeworkId={activeHomework?.id ?? null}
+                homeworkBar={
+                  <HomeworkPickerBar
+                    homeworkOptions={session.homework}
+                    activeHomework={activeHomework}
+                    onPickHomework={setActiveHomework}
+                    onMarkHomeworkDone={async () => {
+                      if (!activeHomework) return;
+                      try {
+                        await completeHomework({
+                          data: { device_token: token!, homework_id: activeHomework.id },
+                        });
+                        const s = await fetchStreak({ data: { device_token: token! } });
+                        setStreak(s as Streak);
+                        setActiveHomework(null);
+                      } catch (e) {
+                        console.warn("mark homework done failed:", (e as Error).message);
+                      }
+                    }}
+                  />
+                }
+              />
+            </Suspense>
+          </ClientOnly>
         </OverlayShell>
       )}
       {overlay === "chat" && (
