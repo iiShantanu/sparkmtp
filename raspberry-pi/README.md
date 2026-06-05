@@ -2,7 +2,7 @@
 
 Turns a Raspberry Pi into a single-purpose Spark student tablet:
 
-- Boots straight into Chromium full-screen on `https://bloom-classroom-hub.lovable.app/student`
+- Boots straight into Chromium full-screen on `https://spark.lovable.app/student`
 - Nothing else is reachable to the student
 - A small local service (`spark-device-service.py`) exposes Wi-Fi and Bluetooth controls to the student page over `http://127.0.0.1:8765`
 - Works offline — UI loads, music/timer/clock work; only AI features need internet
@@ -36,13 +36,13 @@ The kiosk points at the published Lovable URL, so every time you publish in Lova
 
 ## Files
 
-| File | Purpose |
-|---|---|
-| `setup.sh` | Installs everything: NetworkManager, Bluez, Chromium, the helper service, the kiosk autostart |
-| `spark-device-service.py` | Flask app on `127.0.0.1:8765` wrapping `nmcli` and `bluetoothctl` |
-| `spark-device.service` | systemd unit that runs the helper on boot |
-| `kiosk.desktop` | LXDE autostart entry that launches Chromium in kiosk mode |
-| `kiosk.sh` | Chromium launch script (full-screen, no cursor, no errors) |
+| File                      | Purpose                                                                                       |
+| ------------------------- | --------------------------------------------------------------------------------------------- |
+| `setup.sh`                | Installs everything: NetworkManager, Bluez, Chromium, the helper service, the kiosk autostart |
+| `spark-device-service.py` | Flask app on `127.0.0.1:8765` wrapping `nmcli` and `bluetoothctl`                             |
+| `spark-device.service`    | systemd unit that runs the helper on boot                                                     |
+| `kiosk.desktop`           | LXDE autostart entry that launches Chromium in kiosk mode                                     |
+| `kiosk.sh`                | Chromium launch script (full-screen, no cursor, no errors)                                    |
 
 ## Security notes
 
