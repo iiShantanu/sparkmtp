@@ -2,7 +2,7 @@
 
 Turns a Raspberry Pi into a single-purpose Spark student tablet:
 
-- Boots straight into Chromium full-screen on `https://spark.lovable.app/student`
+- Boots straight into Chromium full-screen on `https://sparkmtp.lovable.app/student`
 - Nothing else is reachable to the student
 - A small local service (`spark-device-service.py`) exposes Wi-Fi and Bluetooth controls to the student page over `http://127.0.0.1:8765`
 - Works offline — UI loads, music/timer/clock work; only AI features need internet
