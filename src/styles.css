@@ -152,3 +152,42 @@
     color: var(--color-foreground);
   }
 }
+
+/* High-contrast + large-text mode for the student tablet UI.
+   Toggle by adding the `hc-mode` class on a scoping container. */
+.hc-mode {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.12 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.12 0 0);
+  --muted: oklch(0.95 0 0);
+  --muted-foreground: oklch(0.25 0 0);
+  --border: oklch(0.2 0 0);
+  --input: oklch(0.2 0 0);
+  --ring: oklch(0.12 0 0);
+  font-size: 18px;
+  line-height: 1.45;
+}
+.hc-mode * {
+  letter-spacing: 0.005em;
+}
+.hc-mode .text-xs { font-size: 0.95rem; }
+.hc-mode .text-sm { font-size: 1.05rem; }
+.hc-mode .text-base { font-size: 1.2rem; }
+.hc-mode .text-lg { font-size: 1.35rem; }
+.hc-mode .text-xl { font-size: 1.55rem; }
+.hc-mode .text-2xl { font-size: 1.85rem; }
+.hc-mode .text-3xl { font-size: 2.15rem; }
+.hc-mode .text-muted-foreground { color: var(--foreground); opacity: 0.85; }
+.hc-mode button,
+.hc-mode input,
+.hc-mode a {
+  font-weight: 600;
+}
+.hc-mode .border,
+.hc-mode .border-border,
+.hc-mode .border-input { border-width: 2px; }
+.hc-mode :focus-visible {
+  outline: 3px solid var(--foreground);
+  outline-offset: 2px;
+}
