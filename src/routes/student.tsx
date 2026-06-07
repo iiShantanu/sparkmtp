@@ -231,51 +231,40 @@ function StudentTablet() {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
-      <header className="flex shrink-0 items-center justify-between border-b border-border px-6 py-3">
-        <div className="flex items-center gap-2">
-          <span className="grid h-9 w-9 place-items-center rounded-lg bg-primary text-primary-foreground">
-            <Sparkles className="h-4 w-4" />
-          </span>
-          <div>
-            <div className="text-sm font-semibold">Hi, {student?.full_name}</div>
-            <div className="text-xs text-muted-foreground">
-              {student?.classes?.name}
-              {student?.classes?.section ? ` · ${student.classes.section}` : ""}
+      <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2.5">
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-lg font-bold leading-tight">Hi, {student?.full_name?.split(" ")[0]}</div>
+          {(student?.classes?.name || streak.current_streak > 0 || !online) && (
+            <div className="mt-0.5 flex items-center gap-2 text-sm text-muted-foreground">
+              {student?.classes?.name && (
+                <span>
+                  {student.classes.name}
+                  {student.classes.section ? ` · ${student.classes.section}` : ""}
+                </span>
+              )}
+              {streak.current_streak > 0 && (
+                <span className="inline-flex items-center gap-0.5 font-semibold text-orange-600">
+                  <Flame className="h-3.5 w-3.5" /> {streak.current_streak}
+                </span>
+              )}
+              {!online && (
+                <span className="font-semibold uppercase text-amber-600">Offline</span>
+              )}
             </div>
-          </div>
+          )}
         </div>
-        <div className="flex items-center gap-3">
-          <Clock />
-          {!online && (
-            <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-600">
-              Offline
+        <button
+          onClick={() => setNoticesOpen(true)}
+          className="relative grid h-11 w-11 shrink-0 place-items-center rounded-full border border-border text-foreground hover:bg-accent"
+          aria-label="Open notices"
+        >
+          <Bell className="h-5 w-5" />
+          {unseenCount > 0 && (
+            <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-destructive px-1 text-[11px] font-bold text-destructive-foreground">
+              {unseenCount}
             </span>
           )}
-          {streak.current_streak > 0 && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/15 px-2 py-1 text-xs font-semibold text-orange-600">
-              <Flame className="h-3 w-3" /> {streak.current_streak}
-            </span>
-          )}
-          <button onClick={() => setTool("wifi")} className="rounded-full border border-border p-2 text-muted-foreground hover:bg-accent hover:text-foreground" aria-label="Wi-Fi">
-            <Wifi className="h-4 w-4" />
-          </button>
-          <button onClick={() => setTool("bt")} className="rounded-full border border-border p-2 text-muted-foreground hover:bg-accent hover:text-foreground" aria-label="Bluetooth">
-            <Bluetooth className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => setNoticesOpen(true)}
-            className="relative inline-flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-            aria-label="Open notices"
-          >
-            <Bell className="h-4 w-4" />
-            {notices.length}
-            {unseenCount > 0 && (
-              <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
-                {unseenCount}
-              </span>
-            )}
-          </button>
-        </div>
+        </button>
       </header>
 
       <PanelScroller
@@ -563,47 +552,40 @@ function SparkPanel({
   }, []);
 
   return (
-    <div className="mx-auto flex h-full max-w-3xl flex-col px-4 pt-4 pb-20">
-      {/* Goal chip */}
-      {goal && (
-        <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-2.5 text-sm">
-          <div className="min-w-0">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Today's goal{goal.source === "teacher" ? " · teacher" : ""}
-            </div>
-            <div className="truncate font-medium">{goal.title}</div>
-          </div>
-          <button
-            onClick={onMarkGoalDone}
-            disabled={!!goal.completed_at || !online}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-          >
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            {goal.completed_at ? "Done" : "Mark done"}
-          </button>
-        </div>
+    <div className="mx-auto flex h-full w-full max-w-md flex-col px-3 pt-3 pb-16">
+      {goal && !goal.completed_at && (
+        <button
+          onClick={onMarkGoalDone}
+          disabled={!online}
+          className="mb-3 flex w-full items-center justify-between gap-2 rounded-xl border border-border bg-card px-3 py-2 text-left disabled:opacity-60"
+        >
+          <span className="truncate text-base font-semibold">🎯 {goal.title}</span>
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary px-3 py-1 text-sm font-semibold text-primary-foreground">
+            <CheckCircle2 className="h-4 w-4" /> Done
+          </span>
+        </button>
       )}
 
       {/* Hero */}
       <div className="flex flex-1 items-center justify-center">
         {!voiceActive ? (
-          <div className="flex flex-col items-center gap-6 text-center">
-            <SparkAvatar emotion="friendly" size={220} showLabel={false} />
+          <div className="flex flex-col items-center gap-6">
+            <SparkAvatar emotion="friendly" size={200} showLabel={false} />
             <button
               onClick={startVoice}
               disabled={!online}
-              className="inline-flex items-center gap-2 rounded-full bg-primary px-8 py-4 text-lg font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center gap-3 rounded-full bg-primary px-8 py-5 text-2xl font-bold text-primary-foreground shadow-lg shadow-primary/30 transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <Mic className="h-5 w-5" /> Talk to Spark
+              <Mic className="h-7 w-7" /> Talk to Spark
             </button>
-            <p className="text-sm text-muted-foreground">
-              {online ? "Tap once — Spark will start the conversation." : "Connect to Wi-Fi to talk with Spark."}
-            </p>
+            {!online && (
+              <p className="text-base font-medium text-amber-600">Connect to Wi-Fi</p>
+            )}
           </div>
         ) : (
           <div className="w-full">
-            <ClientOnly fallback={<div className="p-6 text-center text-sm text-muted-foreground">Loading voice…</div>}>
-              <Suspense fallback={<div className="p-6 text-center text-sm text-muted-foreground">Loading voice…</div>}>
+            <ClientOnly fallback={<div className="p-6 text-center text-base text-muted-foreground">Loading voice…</div>}>
+              <Suspense fallback={<div className="p-6 text-center text-base text-muted-foreground">Loading voice…</div>}>
                 <VoiceMode
                   token={token}
                   autoStart
@@ -621,28 +603,24 @@ function SparkPanel({
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          if (!chatSeed.trim()) return;
           openChat();
         }}
         className="mt-4 flex items-center gap-2 rounded-2xl border border-border bg-card p-2 shadow-sm"
       >
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
-          <MessageSquare className="h-4 w-4" />
-        </span>
         <input
           value={chatSeed}
           onChange={(e) => setChatSeed(e.target.value)}
-          placeholder={online ? "Chat with Spark — type your question…" : "Needs Wi-Fi to chat"}
+          placeholder={online ? "Chat with Spark…" : "Needs Wi-Fi"}
           disabled={!online}
-          className="flex-1 bg-transparent px-1 py-2 text-sm outline-none disabled:opacity-60"
+          className="flex-1 bg-transparent px-3 py-3 text-base outline-none disabled:opacity-60"
         />
         <button
-          type="button"
-          onClick={openChat}
+          type="submit"
           disabled={!online}
-          className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          aria-label="Open chat"
+          className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
-          <Send className="h-4 w-4" /> {chatSeed.trim() ? "Send" : "Open"}
+          <Send className="h-5 w-5" />
         </button>
       </form>
     </div>
@@ -676,49 +654,42 @@ function ToolsPanel({
   openHomework: (h: Homework) => void;
 }) {
   return (
-    <div className="mx-auto max-w-5xl space-y-6 px-6 pt-6 pb-20">
+    <div className="mx-auto w-full max-w-md space-y-5 px-3 pt-3 pb-16">
       <div>
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Your tools
-        </h2>
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <ToolTile icon={<Brain className="h-5 w-5" />} label="Quiz" onClick={openQuiz} disabled={!online} />
-          <ToolTile icon={<MessageSquare className="h-5 w-5" />} label="Messages" onClick={openMessages} disabled={!online} />
-          <ToolTile icon={<MusicIcon className="h-5 w-5" />} label="Music" onClick={openMusic} />
-          <ToolTile icon={<Timer className="h-5 w-5" />} label="Pomodoro" onClick={openPomodoro} />
-          <ToolTile icon={<Wifi className="h-5 w-5" />} label="Wi-Fi" onClick={openWifi} />
-          <ToolTile icon={<Bluetooth className="h-5 w-5" />} label="Bluetooth" onClick={openBluetooth} />
-          <ToolTile icon={<Bell className="h-5 w-5" />} label="Notices" onClick={openNotices} />
-          <ToolTile icon={<BookOpen className="h-5 w-5" />} label="Homework" onClick={() => {
-            const first = homework[0];
-            if (first) openHomework(first);
-          }} disabled={homework.length === 0 || !online} />
+        <h2 className="px-1 text-xl font-bold">Tools</h2>
+        <div className="mt-3 grid grid-cols-3 gap-2.5">
+          <ToolTile icon={<Brain className="h-7 w-7" />} label="Quiz" onClick={openQuiz} disabled={!online} />
+          <ToolTile icon={<MessageSquare className="h-7 w-7" />} label="Messages" onClick={openMessages} disabled={!online} />
+          <ToolTile icon={<MusicIcon className="h-7 w-7" />} label="Music" onClick={openMusic} />
+          <ToolTile icon={<Timer className="h-7 w-7" />} label="Pomodoro" onClick={openPomodoro} />
+          <ToolTile icon={<Wifi className="h-7 w-7" />} label="Wi-Fi" onClick={openWifi} />
+          <ToolTile icon={<Bluetooth className="h-7 w-7" />} label="Bluetooth" onClick={openBluetooth} />
         </div>
       </div>
 
       <div>
-        <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          <BookOpen className="h-3.5 w-3.5" /> Today's homework
-        </h2>
+        <h2 className="px-1 text-xl font-bold">Homework</h2>
         {homework.length === 0 ? (
-          <p className="mt-3 rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-            Nothing assigned right now. 🎉
+          <p className="mt-3 rounded-xl border border-dashed border-border p-5 text-center text-base text-muted-foreground">
+            Nothing for today 🎉
           </p>
         ) : (
-          <ul className="mt-3 grid gap-3 sm:grid-cols-2">
+          <ul className="mt-3 space-y-2">
             {homework.map((h) => (
               <li key={h.id}>
                 <button
                   onClick={() => openHomework(h)}
-                  className="w-full rounded-xl border border-border bg-card p-4 text-left transition hover:border-primary"
+                  className="w-full rounded-xl border border-border bg-card p-4 text-left transition active:scale-[0.98] hover:border-primary"
                 >
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                    {h.subject}
-                  </div>
-                  <div className="mt-1 text-base font-semibold">{h.title}</div>
+                  {h.subject && (
+                    <div className="text-sm font-semibold uppercase tracking-wide text-primary">
+                      {h.subject}
+                    </div>
+                  )}
+                  <div className="mt-0.5 text-base font-semibold leading-tight">{h.title}</div>
                   {h.due_at && (
-                    <div className="mt-2 text-xs text-muted-foreground">
-                      Due {new Date(h.due_at).toLocaleString()}
+                    <div className="mt-1.5 text-sm text-muted-foreground">
+                      Due {new Date(h.due_at).toLocaleDateString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}
                     </div>
                   )}
                 </button>
@@ -873,9 +844,9 @@ function ToolTile({
     <button
       onClick={onClick}
       disabled={disabled}
-      className="flex flex-col items-center gap-2 rounded-xl border border-border bg-card p-4 text-sm font-medium transition hover:border-primary hover:bg-accent disabled:opacity-50"
+      className="flex aspect-square flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-card p-2 text-base font-semibold transition active:scale-95 hover:border-primary hover:bg-accent disabled:opacity-50"
     >
-      <span className="grid h-10 w-10 place-items-center rounded-lg bg-primary/10 text-primary">{icon}</span>
+      <span className="grid h-12 w-12 place-items-center rounded-xl bg-primary/10 text-primary">{icon}</span>
       {label}
     </button>
   );
