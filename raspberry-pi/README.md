@@ -155,6 +155,29 @@ DISPLAY=:0 xrandr                       # connected output + current rotation
 grep -A4 'spark-display' /boot/firmware/config.txt
 ```
 
+### Touch-only kiosk (no cursor, correct touch axes)
+
+The installer makes the kiosk truly touch-only:
+
+- **No mouse pointer.** `~/.xserverrc` launches the X server with `-nocursor`,
+  so a cursor is never drawn. `unclutter -idle 0` runs as a backup.
+- **Touch axes match the rotated display.** Right after `xrandr` rotates the
+  picture, `.xinitrc` applies a matching *Coordinate Transformation Matrix* to
+  every touchscreen device via `xinput`. Without this, the picture is portrait
+  but the touchscreen still reports landscape coordinates, so a horizontal
+  finger swipe registers as vertical movement.
+
+Verify over SSH:
+
+```bash
+DISPLAY=:0 xinput --list
+DISPLAY=:0 xinput list-props "<your touchscreen name>" | grep "Coordinate Transformation Matrix"
+```
+
+If a new touchscreen model is not auto-detected (the matcher looks for names
+containing `Touch`, `Touchscreen`, `FT5`, `Goodix`, or `Raspberry Pi`), add its
+name to the `case` block in `setup.sh` and re-run the installer.
+
 ### "I see the desktop instead of Chromium"
 - Re-run `sudo bash setup.sh` — it idempotently re-applies the console autologin
   + `.xinitrc` + `.bash_profile` setup.
