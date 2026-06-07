@@ -230,8 +230,8 @@ function StudentTablet() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="flex items-center justify-between border-b border-border px-6 py-4">
+    <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
+      <header className="flex shrink-0 items-center justify-between border-b border-border px-6 py-3">
         <div className="flex items-center gap-2">
           <span className="grid h-9 w-9 place-items-center rounded-lg bg-primary text-primary-foreground">
             <Sparkles className="h-4 w-4" />
@@ -278,137 +278,36 @@ function StudentTablet() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-4xl space-y-6 p-6">
-        {/* Daily goal banner */}
-        <section className="rounded-2xl border border-border bg-card p-5">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0 flex-1">
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Today's goal {goal?.source === "teacher" && <span className="ml-1 text-primary">· set by teacher</span>}
-              </div>
-              <div className="mt-1 text-lg font-semibold">
-                {goal?.title ?? (online ? "Loading…" : "Goal will load when online.")}
-              </div>
-            </div>
-            {goal && (
-              <button
-                onClick={onMarkGoalDone}
-                disabled={!!goal.completed_at || !online}
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-              >
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                {goal.completed_at ? "Done" : "Mark done"}
-              </button>
-            )}
-          </div>
-        </section>
-
-        {/* Talk + Chat CTAs */}
-        <section className="grid grid-cols-2 gap-3">
-          <button
-            onClick={async () => {
-              // Request mic permission as part of the user gesture so the
-              // auto-start inside VoiceMode doesn't need a second tap.
-              try {
-                if (typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
-                  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                  stream.getTracks().forEach((track) => track.stop());
-                }
-              } catch {
-                // Continue anyway — VoiceMode will surface the error.
-              }
+      <PanelScroller
+        sparkPanel={
+          <SparkPanel
+            token={token!}
+            online={online}
+            goal={goal}
+            onMarkGoalDone={onMarkGoalDone}
+            chatSeed={chatSeed}
+            setChatSeed={setChatSeed}
+            openChat={() => setOverlay("chat")}
+          />
+        }
+        toolsPanel={
+          <ToolsPanel
+            online={online}
+            homework={session.homework}
+            openQuiz={() => setOverlay("quiz")}
+            openMessages={() => setOverlay("messages")}
+            openMusic={() => setTool("music")}
+            openPomodoro={() => setTool("pomodoro")}
+            openWifi={() => setTool("wifi")}
+            openBluetooth={() => setTool("bt")}
+            openNotices={() => setNoticesOpen(true)}
+            openHomework={(h) => {
+              setActiveHomework(h);
               setOverlay("voice");
             }}
-            disabled={!online}
-            className="group flex flex-col items-center gap-3 rounded-2xl bg-gradient-to-br from-primary to-primary/70 p-5 text-primary-foreground shadow-sm hover:from-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <SparkAvatar emotion="friendly" size={84} showLabel={false} />
-            <div className="text-base font-semibold">🎙 Talk to Spark</div>
-            <div className="text-xs opacity-90">
-              {online ? "Tap and start speaking" : "Needs Wi-Fi"}
-            </div>
-          </button>
-          <button
-            onClick={() => {
-              setChatSeed("");
-              setOverlay("chat");
-            }}
-            disabled={!online}
-            className="group flex flex-col items-center gap-3 rounded-2xl border-2 border-primary/40 bg-card p-5 text-foreground hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <span className="grid h-[84px] w-[84px] place-items-center rounded-full bg-primary/10 text-primary">
-              <MessageSquare className="h-8 w-8" />
-            </span>
-            <div className="text-base font-semibold">💬 Chat with Spark</div>
-            <div className="text-xs text-muted-foreground">
-              {online ? "Type your question" : "Needs Wi-Fi"}
-            </div>
-          </button>
-        </section>
-
-        {/* Smart reminders */}
-        <SmartReminders
-          session={session}
-          onChatTopic={(seed) => {
-            setChatSeed(seed);
-            setOverlay("chat");
-          }}
-          onOpenHomework={(h) => {
-            setActiveHomework(h);
-            setOverlay("voice");
-          }}
-        />
-
-        {/* Tools row */}
-        <section>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Tools
-          </h2>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-            <ToolTile icon={<Brain className="h-5 w-5" />} label="Quiz" onClick={() => setOverlay("quiz")} disabled={!online} />
-            <ToolTile icon={<MessageSquare className="h-5 w-5" />} label="Messages" onClick={() => setOverlay("messages")} disabled={!online} />
-            <ToolTile icon={<MusicIcon className="h-5 w-5" />} label="Music" onClick={() => setTool("music")} />
-            <ToolTile icon={<Timer className="h-5 w-5" />} label="Pomodoro" onClick={() => setTool("pomodoro")} />
-            <ToolTile icon={<Wifi className="h-5 w-5" />} label="Wi-Fi" onClick={() => setTool("wifi")} />
-          </div>
-        </section>
-
-        {/* Homework */}
-        <section>
-          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            <BookOpen className="h-4 w-4" /> Today's homework
-          </h2>
-          {session.homework.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-              Nothing assigned right now. 🎉
-            </p>
-          ) : (
-            <ul className="grid gap-3 sm:grid-cols-2">
-              {session.homework.map((h) => (
-                <li key={h.id}>
-                  <button
-                    onClick={() => {
-                      setActiveHomework(h);
-                      setOverlay("voice");
-                    }}
-                    className="w-full rounded-xl border border-border bg-card p-4 text-left transition hover:border-primary"
-                  >
-                    <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                      {h.subject}
-                    </div>
-                    <div className="mt-1 text-base font-semibold">{h.title}</div>
-                    {h.due_at && (
-                      <div className="mt-2 text-xs text-muted-foreground">
-                        Due {new Date(h.due_at).toLocaleString()}
-                      </div>
-                    )}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      </main>
+          />
+        }
+      />
 
       {/* Overlays */}
       {overlay === "voice" && (
