@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState, useEffect } from "react";
 import { SparkLogo } from "@/components/spark-logo";
 import { devicePair } from "@/lib/device.functions";
+import { VirtualKeyboard } from "@/components/student/virtual-keyboard";
 
 export const Route = createFileRoute("/device-pair")({
   head: () => ({ meta: [{ title: "Pair Spark Tablet" }] }),
@@ -69,6 +70,7 @@ function DevicePairPage() {
           </button>
         </form>
       </div>
+      <VirtualKeyboard />
     </main>
   );
 }
