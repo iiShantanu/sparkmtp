@@ -296,6 +296,8 @@ function StudentTablet() {
             openPomodoro={() => setTool("pomodoro")}
             openWifi={() => setTool("wifi")}
             openBluetooth={() => setTool("bt")}
+            openNotes={() => setTool("notes")}
+            openTodo={() => setTool("todo")}
             openNotices={() => setNoticesOpen(true)}
             openHomework={(h) => {
               setActiveHomework(h);
@@ -403,6 +405,8 @@ function StudentTablet() {
       {tool === "pomodoro" && <Pomodoro onClose={() => setTool(null)} token={token} />}
       {tool === "wifi" && <WifiPanel onClose={() => setTool(null)} />}
       {tool === "bt" && <BluetoothPanel onClose={() => setTool(null)} />}
+      {tool === "notes" && <NotesPanel onClose={() => setTool(null)} />}
+      {tool === "todo" && <TodoPanel onClose={() => setTool(null)} />}
       <VirtualKeyboard />
     </div>
   );
