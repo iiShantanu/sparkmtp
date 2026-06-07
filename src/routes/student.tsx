@@ -552,47 +552,40 @@ function SparkPanel({
   }, []);
 
   return (
-    <div className="mx-auto flex h-full max-w-3xl flex-col px-4 pt-4 pb-20">
-      {/* Goal chip */}
-      {goal && (
-        <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-2.5 text-sm">
-          <div className="min-w-0">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Today's goal{goal.source === "teacher" ? " · teacher" : ""}
-            </div>
-            <div className="truncate font-medium">{goal.title}</div>
-          </div>
-          <button
-            onClick={onMarkGoalDone}
-            disabled={!!goal.completed_at || !online}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-          >
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            {goal.completed_at ? "Done" : "Mark done"}
-          </button>
-        </div>
+    <div className="mx-auto flex h-full w-full max-w-md flex-col px-3 pt-3 pb-16">
+      {goal && !goal.completed_at && (
+        <button
+          onClick={onMarkGoalDone}
+          disabled={!online}
+          className="mb-3 flex w-full items-center justify-between gap-2 rounded-xl border border-border bg-card px-3 py-2 text-left disabled:opacity-60"
+        >
+          <span className="truncate text-base font-semibold">🎯 {goal.title}</span>
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary px-3 py-1 text-sm font-semibold text-primary-foreground">
+            <CheckCircle2 className="h-4 w-4" /> Done
+          </span>
+        </button>
       )}
 
       {/* Hero */}
       <div className="flex flex-1 items-center justify-center">
         {!voiceActive ? (
-          <div className="flex flex-col items-center gap-6 text-center">
-            <SparkAvatar emotion="friendly" size={220} showLabel={false} />
+          <div className="flex flex-col items-center gap-6">
+            <SparkAvatar emotion="friendly" size={200} showLabel={false} />
             <button
               onClick={startVoice}
               disabled={!online}
-              className="inline-flex items-center gap-2 rounded-full bg-primary px-8 py-4 text-lg font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center gap-3 rounded-full bg-primary px-8 py-5 text-2xl font-bold text-primary-foreground shadow-lg shadow-primary/30 transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <Mic className="h-5 w-5" /> Talk to Spark
+              <Mic className="h-7 w-7" /> Talk to Spark
             </button>
-            <p className="text-sm text-muted-foreground">
-              {online ? "Tap once — Spark will start the conversation." : "Connect to Wi-Fi to talk with Spark."}
-            </p>
+            {!online && (
+              <p className="text-base font-medium text-amber-600">Connect to Wi-Fi</p>
+            )}
           </div>
         ) : (
           <div className="w-full">
-            <ClientOnly fallback={<div className="p-6 text-center text-sm text-muted-foreground">Loading voice…</div>}>
-              <Suspense fallback={<div className="p-6 text-center text-sm text-muted-foreground">Loading voice…</div>}>
+            <ClientOnly fallback={<div className="p-6 text-center text-base text-muted-foreground">Loading voice…</div>}>
+              <Suspense fallback={<div className="p-6 text-center text-base text-muted-foreground">Loading voice…</div>}>
                 <VoiceMode
                   token={token}
                   autoStart
@@ -610,28 +603,24 @@ function SparkPanel({
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          if (!chatSeed.trim()) return;
           openChat();
         }}
         className="mt-4 flex items-center gap-2 rounded-2xl border border-border bg-card p-2 shadow-sm"
       >
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
-          <MessageSquare className="h-4 w-4" />
-        </span>
         <input
           value={chatSeed}
           onChange={(e) => setChatSeed(e.target.value)}
-          placeholder={online ? "Chat with Spark — type your question…" : "Needs Wi-Fi to chat"}
+          placeholder={online ? "Chat with Spark…" : "Needs Wi-Fi"}
           disabled={!online}
-          className="flex-1 bg-transparent px-1 py-2 text-sm outline-none disabled:opacity-60"
+          className="flex-1 bg-transparent px-3 py-3 text-base outline-none disabled:opacity-60"
         />
         <button
-          type="button"
-          onClick={openChat}
+          type="submit"
           disabled={!online}
-          className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          aria-label="Open chat"
+          className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
-          <Send className="h-4 w-4" /> {chatSeed.trim() ? "Send" : "Open"}
+          <Send className="h-5 w-5" />
         </button>
       </form>
     </div>
