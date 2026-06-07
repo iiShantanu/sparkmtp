@@ -259,6 +259,7 @@ function StudentTablet() {
           )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          <Clock />
           <button
             onClick={() => setNoticesOpen(true)}
             className="relative grid h-11 w-11 place-items-center rounded-full border border-border text-foreground hover:bg-accent"
