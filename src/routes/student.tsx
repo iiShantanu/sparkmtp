@@ -15,6 +15,8 @@ import {
   Mic,
   MicOff,
   Music as MusicIcon,
+  NotebookPen,
+  ListChecks,
   Send,
   Sparkles,
   Timer,
@@ -44,6 +46,8 @@ import { MusicPlayer } from "@/components/student/music-player";
 import { WifiPanel } from "@/components/student/wifi-panel";
 import { BluetoothPanel } from "@/components/student/bluetooth-panel";
 import { MessagesPanel } from "@/components/student/messages-panel";
+import { NotesPanel } from "@/components/student/notes-panel";
+import { TodoPanel } from "@/components/student/todo-panel";
 import { useOnline } from "@/hooks/use-online";
 import { VirtualKeyboard } from "@/components/student/virtual-keyboard";
 
@@ -110,7 +114,7 @@ type Streak = {
 };
 
 type Overlay = null | "voice" | "chat" | "quiz" | "messages";
-type Tool = null | "music" | "pomodoro" | "wifi" | "bt";
+type Tool = null | "music" | "pomodoro" | "wifi" | "bt" | "notes" | "todo";
 
 function StudentTablet() {
   const navigate = useNavigate();
@@ -292,6 +296,8 @@ function StudentTablet() {
             openPomodoro={() => setTool("pomodoro")}
             openWifi={() => setTool("wifi")}
             openBluetooth={() => setTool("bt")}
+            openNotes={() => setTool("notes")}
+            openTodo={() => setTool("todo")}
             openNotices={() => setNoticesOpen(true)}
             openHomework={(h) => {
               setActiveHomework(h);
@@ -399,6 +405,8 @@ function StudentTablet() {
       {tool === "pomodoro" && <Pomodoro onClose={() => setTool(null)} token={token} />}
       {tool === "wifi" && <WifiPanel onClose={() => setTool(null)} />}
       {tool === "bt" && <BluetoothPanel onClose={() => setTool(null)} />}
+      {tool === "notes" && <NotesPanel onClose={() => setTool(null)} />}
+      {tool === "todo" && <TodoPanel onClose={() => setTool(null)} />}
       <VirtualKeyboard />
     </div>
   );
@@ -657,6 +665,8 @@ function ToolsPanel({
   openBluetooth,
   openNotices,
   openHomework,
+  openNotes,
+  openTodo,
 }: {
   online: boolean;
   homework: Homework[];
@@ -668,43 +678,47 @@ function ToolsPanel({
   openBluetooth: () => void;
   openNotices: () => void;
   openHomework: (h: Homework) => void;
+  openNotes: () => void;
+  openTodo: () => void;
 }) {
   return (
-    <div className="mx-auto w-full max-w-md space-y-5 px-3 pt-3 pb-16">
+    <div className="mx-auto w-full max-w-2xl space-y-6 px-4 pt-4 pb-20">
       <div>
-        <h2 className="px-1 text-xl font-bold">Tools</h2>
-        <div className="mt-3 grid grid-cols-3 gap-2.5">
-          <ToolTile icon={<Brain className="h-7 w-7" />} label="Quiz" onClick={openQuiz} disabled={!online} />
-          <ToolTile icon={<MessageSquare className="h-7 w-7" />} label="Messages" onClick={openMessages} disabled={!online} />
-          <ToolTile icon={<MusicIcon className="h-7 w-7" />} label="Music" onClick={openMusic} />
-          <ToolTile icon={<Timer className="h-7 w-7" />} label="Pomodoro" onClick={openPomodoro} />
-          <ToolTile icon={<Wifi className="h-7 w-7" />} label="Wi-Fi" onClick={openWifi} />
-          <ToolTile icon={<Bluetooth className="h-7 w-7" />} label="Bluetooth" onClick={openBluetooth} />
+        <h2 className="px-1 text-2xl font-bold">Tools</h2>
+        <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <ToolTile icon={<Brain className="h-12 w-12" />} label="Quiz" onClick={openQuiz} disabled={!online} />
+          <ToolTile icon={<MessageSquare className="h-12 w-12" />} label="Messages" onClick={openMessages} disabled={!online} />
+          <ToolTile icon={<NotebookPen className="h-12 w-12" />} label="Notes" onClick={openNotes} />
+          <ToolTile icon={<ListChecks className="h-12 w-12" />} label="To-Do" onClick={openTodo} />
+          <ToolTile icon={<MusicIcon className="h-12 w-12" />} label="Music" onClick={openMusic} />
+          <ToolTile icon={<Timer className="h-12 w-12" />} label="Pomodoro" onClick={openPomodoro} />
+          <ToolTile icon={<Wifi className="h-12 w-12" />} label="Wi-Fi" onClick={openWifi} />
+          <ToolTile icon={<Bluetooth className="h-12 w-12" />} label="Bluetooth" onClick={openBluetooth} />
         </div>
       </div>
 
       <div>
-        <h2 className="px-1 text-xl font-bold">Homework</h2>
+        <h2 className="px-1 text-2xl font-bold">Homework</h2>
         {homework.length === 0 ? (
-          <p className="mt-3 rounded-xl border border-dashed border-border p-5 text-center text-base text-muted-foreground">
+          <p className="mt-4 rounded-2xl border border-dashed border-border p-6 text-center text-lg text-muted-foreground">
             Nothing for today 🎉
           </p>
         ) : (
-          <ul className="mt-3 space-y-2">
+          <ul className="mt-4 space-y-3">
             {homework.map((h) => (
               <li key={h.id}>
                 <button
                   onClick={() => openHomework(h)}
-                  className="w-full rounded-xl border border-border bg-card p-4 text-left transition active:scale-[0.98] hover:border-primary"
+                  className="w-full rounded-2xl border border-border bg-card p-5 text-left transition active:scale-[0.98] hover:border-primary"
                 >
                   {h.subject && (
-                    <div className="text-sm font-semibold uppercase tracking-wide text-primary">
+                    <div className="text-base font-semibold uppercase tracking-wide text-primary">
                       {h.subject}
                     </div>
                   )}
-                  <div className="mt-0.5 text-base font-semibold leading-tight">{h.title}</div>
+                  <div className="mt-1 text-lg font-semibold leading-tight">{h.title}</div>
                   {h.due_at && (
-                    <div className="mt-1.5 text-sm text-muted-foreground">
+                    <div className="mt-2 text-base text-muted-foreground">
                       Due {new Date(h.due_at).toLocaleDateString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}
                     </div>
                   )}
@@ -860,9 +874,9 @@ function ToolTile({
     <button
       onClick={onClick}
       disabled={disabled}
-      className="flex aspect-square flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-card p-2 text-base font-semibold transition active:scale-95 hover:border-primary hover:bg-accent disabled:opacity-50"
+      className="flex aspect-square flex-col items-center justify-center gap-3 rounded-3xl border border-border bg-card p-4 text-lg font-semibold transition active:scale-95 hover:border-primary hover:bg-accent disabled:opacity-50"
     >
-      <span className="grid h-12 w-12 place-items-center rounded-xl bg-primary/10 text-primary">{icon}</span>
+      <span className="grid h-20 w-20 place-items-center rounded-2xl bg-primary/10 text-primary">{icon}</span>
       {label}
     </button>
   );
