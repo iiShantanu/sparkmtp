@@ -21,11 +21,13 @@ export function VirtualKeyboard() {
   useEffect(() => {
     if (!open) {
       document.body.style.paddingBottom = "";
+      document.documentElement.style.setProperty("--osk-height", "0px");
       return;
     }
     const apply = () => {
       const h = panelRef.current?.offsetHeight ?? 320;
       document.body.style.paddingBottom = `${h + 12}px`;
+      document.documentElement.style.setProperty("--osk-height", `${h}px`);
       const el = targetRef.current;
       if (el) {
         // Wait for layout to settle, then bring the input above the keyboard
@@ -40,6 +42,7 @@ export function VirtualKeyboard() {
     return () => {
       ro.disconnect();
       document.body.style.paddingBottom = "";
+      document.documentElement.style.setProperty("--osk-height", "0px");
     };
   }, [open]);
 
