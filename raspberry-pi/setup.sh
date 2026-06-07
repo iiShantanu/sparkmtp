@@ -16,6 +16,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 #   3 = portrait, 90° counter-clockwise
 SPARK_DISPLAY_ROTATE="${SPARK_DISPLAY_ROTATE:-1}"
 
+# X-layer rotation:
+#   auto  = do not rotate again with xrandr (default — correct when firmware
+#           rotation already handles the panel/touch coordinate space)
+#   match = also apply xrandr rotation matching SPARK_DISPLAY_ROTATE. Use only
+#           for third-party HDMI panels that ignore firmware rotation.
+SPARK_XRANDR_ROTATE="${SPARK_XRANDR_ROTATE:-auto}"
+
 # Touch coordinate transformation:
 #   auto     = let libinput/kernel handle rotation (default — correct for the
 #              Raspberry Pi Touch Display 2 and most DSI panels). Picks identity.
@@ -212,19 +219,31 @@ xset s off
 xset -dpms
 xset s noblank
 
-# Re-assert rotation at the X layer (covers HDMI panels where display_hdmi_rotate
-# is ignored). Safe no-op if the display is already correctly oriented.
+# Compute the touch matrix that matches SPARK_DISPLAY_ROTATE, but do not rotate
+# the X screen by default. The official Raspberry Pi Touch Display 2 already
+# gets its display/touch coordinate space from firmware/kernel rotation; applying
+# xrandr rotation on top makes vertical swipes register horizontally and causes
+# taps to land on the wrong controls.
 PRIMARY="\$(xrandr 2>/dev/null | awk '/ connected/ {print \$1; exit}')"
 MATCH_MATRIX="1 0 0 0 1 0 0 0 1"
-if [ -n "\$PRIMARY" ] && [ "${SPARK_DISPLAY_ROTATE}" = "1" ]; then
-  xrandr --output "\$PRIMARY" --rotate right >/dev/null 2>&1 || true
+if [ "${SPARK_DISPLAY_ROTATE}" = "1" ]; then
   MATCH_MATRIX="0 1 0 -1 0 1 0 0 1"
-elif [ -n "\$PRIMARY" ] && [ "${SPARK_DISPLAY_ROTATE}" = "3" ]; then
-  xrandr --output "\$PRIMARY" --rotate left >/dev/null 2>&1 || true
+elif [ "${SPARK_DISPLAY_ROTATE}" = "3" ]; then
   MATCH_MATRIX="0 -1 1 1 0 0 0 0 1"
-elif [ -n "\$PRIMARY" ] && [ "${SPARK_DISPLAY_ROTATE}" = "2" ]; then
-  xrandr --output "\$PRIMARY" --rotate inverted >/dev/null 2>&1 || true
+elif [ "${SPARK_DISPLAY_ROTATE}" = "2" ]; then
   MATCH_MATRIX="-1 0 1 0 -1 1 0 0 1"
+fi
+
+if [ -n "\$PRIMARY" ] && [ "${SPARK_XRANDR_ROTATE}" = "match" ]; then
+  if [ "${SPARK_DISPLAY_ROTATE}" = "1" ]; then
+    xrandr --output "\$PRIMARY" --rotate right >/dev/null 2>&1 || true
+  elif [ "${SPARK_DISPLAY_ROTATE}" = "3" ]; then
+    xrandr --output "\$PRIMARY" --rotate left >/dev/null 2>&1 || true
+  elif [ "${SPARK_DISPLAY_ROTATE}" = "2" ]; then
+    xrandr --output "\$PRIMARY" --rotate inverted >/dev/null 2>&1 || true
+  else
+    xrandr --output "\$PRIMARY" --rotate normal >/dev/null 2>&1 || true
+  fi
 fi
 
 # Decide which CTM to apply to touchscreens.
@@ -239,12 +258,13 @@ case "${SPARK_TOUCH_MATRIX}" in
   *)     TOUCH_MATRIX="${SPARK_TOUCH_MATRIX}" ;;
 esac
 
-# Apply the matrix to every touchscreen device. Filters by common
-# touchscreen name markers so we don't clobber mice / trackpads.
+# Reset/apply the matrix to every touchscreen device. Filters by common
+# touchscreen name markers so we don't clobber mice / trackpads. The identity
+# default is intentional: it clears stale matrices from earlier installs.
 if command -v xinput >/dev/null 2>&1; then
   xinput --list --name-only 2>/dev/null | while IFS= read -r dev; do
     case "\$dev" in
-      *Touchscreen*|*touchscreen*|*Touch*|*touch*|*FT5*|*Goodix*|*"Raspberry Pi"*)
+      *Touchscreen*|*touchscreen*|*Touch*|*touch*|*FT5*|*FT5406*|*Goodix*|*Goodix-TS*|*"Raspberry Pi"*|*"raspberrypi-ts"*)
         xinput set-prop "\$dev" "Coordinate Transformation Matrix" \$TOUCH_MATRIX >/dev/null 2>&1 || true
         ;;
     esac
@@ -359,6 +379,8 @@ cat <<SUMMARY
   IP Address:             ${IP_ADDR}
   Spark URL:              ${SPARK_URL}
   Display Rotation:       ${SPARK_DISPLAY_ROTATE} (0=landscape, 1=portrait CW, 2=180°, 3=portrait CCW)
+  X Rotation:             ${SPARK_XRANDR_ROTATE} (auto=no extra X rotation, match=apply xrandr)
+  Touch Matrix:           ${SPARK_TOUCH_MATRIX} (auto=identity, match=rotation matrix, or explicit 9 values)
   SSH Status:             ${ssh_status}
   Device Service Status:  ${dev_status}
   API Status:             ${api_status}

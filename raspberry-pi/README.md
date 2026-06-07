@@ -46,6 +46,8 @@ The installer:
   prompts for an unlock password (`--password-store=basic`).
 - Switches boot target to **console autologin** on tty1 and writes
   `~/.xinitrc` + a guarded `~/.bash_profile` block that runs `startx`.
+- Uses firmware/kernel display rotation as the default source of truth, so the
+  official Raspberry Pi Touch Display 2 keeps touch coordinates aligned.
 - Verifies the device service is up (`systemctl is-active`,
   `curl http://127.0.0.1:8765`, `ss -tulpn | grep 8765`) and aborts loudly on failure.
 - Prints a summary with username, IP address, and all service statuses.
@@ -131,10 +133,11 @@ system keyring.
 The installer manages display rotation for you. By default it writes a
 `# >>> spark-display >>>` block to `/boot/firmware/config.txt` setting
 `display_lcd_rotate=1` and `display_hdmi_rotate=1` (portrait, 90° clockwise) —
-the correct orientation for the 7" Touch Display 2 mounted upright. `.xinitrc`
-also re-asserts the rotation via `xrandr` and reads the real post-rotation
-screen size from `xdpyinfo`, so Chromium always opens at the panel's true
-dimensions and fills the whole display.
+the correct orientation for the 7" Touch Display 2 mounted upright. For the
+official Raspberry Pi Touch Display 2, `.xinitrc` does **not** rotate again with
+`xrandr` by default, because the firmware/kernel already aligns touch and video.
+It still reads the real screen size from `xdpyinfo`, so Chromium opens at the
+panel's true dimensions and fills the whole display.
 
 To install for a landscape kiosk instead:
 
@@ -146,6 +149,13 @@ Valid values: `0` landscape, `1` portrait CW (default), `2` upside-down,
 `3` portrait CCW. To change rotation after install, edit the
 `# >>> spark-display >>>` block in `/boot/firmware/config.txt` (or re-run
 setup with a new `SPARK_DISPLAY_ROTATE`) and reboot.
+
+For third-party HDMI screens that ignore firmware rotation, explicitly enable
+the X-layer rotation as well:
+
+```bash
+SPARK_XRANDR_ROTATE=match bash setup.sh
+```
 
 If the kiosk still renders into only part of the screen:
 
@@ -175,13 +185,16 @@ buttons don't register where you tap, your axes are wrong. Try, in order:
 
 ```bash
 # 1. Reset to identity (let the kernel handle rotation)
-SPARK_TOUCH_MATRIX=auto bash setup.sh && sudo reboot
+SPARK_DISPLAY_ROTATE=1 SPARK_XRANDR_ROTATE=auto SPARK_TOUCH_MATRIX=auto sudo -E bash setup.sh && sudo reboot
 
-# 2. If that doesn't help, apply the rotation-matched matrix
-SPARK_TOUCH_MATRIX=match bash setup.sh && sudo reboot
+# 2. For third-party HDMI panels only, apply X rotation too
+SPARK_DISPLAY_ROTATE=1 SPARK_XRANDR_ROTATE=match SPARK_TOUCH_MATRIX=auto sudo -E bash setup.sh && sudo reboot
 
-# 3. Last resort, set an explicit matrix (rotate=1 / right is shown)
-SPARK_TOUCH_MATRIX="0 1 0 -1 0 1 0 0 1" bash setup.sh && sudo reboot
+# 3. If that panel's touch driver does not auto-rotate, apply the matching touch matrix
+SPARK_DISPLAY_ROTATE=1 SPARK_XRANDR_ROTATE=match SPARK_TOUCH_MATRIX=match sudo -E bash setup.sh && sudo reboot
+
+# 4. Last resort, set an explicit matrix (rotate=1 / right is shown)
+SPARK_DISPLAY_ROTATE=1 SPARK_XRANDR_ROTATE=auto SPARK_TOUCH_MATRIX="0 1 0 -1 0 1 0 0 1" sudo -E bash setup.sh && sudo reboot
 ```
 
 Verify over SSH:
