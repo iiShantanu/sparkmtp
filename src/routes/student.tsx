@@ -46,6 +46,7 @@ import { WifiPanel } from "@/components/student/wifi-panel";
 import { BluetoothPanel } from "@/components/student/bluetooth-panel";
 import { MessagesPanel } from "@/components/student/messages-panel";
 import { useOnline } from "@/hooks/use-online";
+import { VirtualKeyboard } from "@/components/student/virtual-keyboard";
 
 const VoiceMode = lazy(() => import("@/components/student/voice-mode"));
 
