@@ -46,6 +46,7 @@ import { WifiPanel } from "@/components/student/wifi-panel";
 import { BluetoothPanel } from "@/components/student/bluetooth-panel";
 import { MessagesPanel } from "@/components/student/messages-panel";
 import { useOnline } from "@/hooks/use-online";
+import { VirtualKeyboard } from "@/components/student/virtual-keyboard";
 
 const VoiceMode = lazy(() => import("@/components/student/voice-mode"));
 
@@ -421,6 +422,7 @@ function StudentTablet() {
       {tool === "pomodoro" && <Pomodoro onClose={() => setTool(null)} token={token} />}
       {tool === "wifi" && <WifiPanel onClose={() => setTool(null)} />}
       {tool === "bt" && <BluetoothPanel onClose={() => setTool(null)} />}
+      <VirtualKeyboard />
     </div>
   );
 }
