@@ -163,6 +163,15 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
   }
+
+  html,
+  body,
+  #root {
+    width: 100%;
+    min-height: 100vh;
+    min-height: 100dvh;
+    margin: 0;
+  }
 }
 
 /* High-contrast + large-text mode for the student tablet UI.
