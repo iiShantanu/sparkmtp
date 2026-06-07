@@ -135,6 +135,15 @@ function StudentTablet() {
   const [noticesOpen, setNoticesOpen] = useState(false);
   const dismissedRef = useRef<Set<string>>(loadDismissed());
   const [, forceRender] = useState(0);
+  const [bigMode, setBigMode] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("spark_big_mode") === "1";
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("spark_big_mode", bigMode ? "1" : "0");
+    } catch {}
+  }, [bigMode]);
 
   useEffect(() => {
     const t = typeof window !== "undefined" ? localStorage.getItem("spark_device_token") : null;
