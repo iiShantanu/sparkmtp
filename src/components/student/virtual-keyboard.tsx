@@ -14,6 +14,37 @@ export function VirtualKeyboard() {
   const [layout, setLayout] = useState<"default" | "shift" | "symbols">("default");
   const targetRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const keyboardRef = useRef<any>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+
+  // Reserve space at the bottom of the page so the focused input is not hidden
+  // behind the on-screen keyboard, and scroll the target into view.
+  useEffect(() => {
+    if (!open) {
+      document.body.style.paddingBottom = "";
+      document.documentElement.style.setProperty("--osk-height", "0px");
+      return;
+    }
+    const apply = () => {
+      const h = panelRef.current?.offsetHeight ?? 320;
+      document.body.style.paddingBottom = `${h + 12}px`;
+      document.documentElement.style.setProperty("--osk-height", `${h}px`);
+      const el = targetRef.current;
+      if (el) {
+        // Wait for layout to settle, then bring the input above the keyboard
+        requestAnimationFrame(() => {
+          el.scrollIntoView({ block: "center", behavior: "smooth" });
+        });
+      }
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
+    if (panelRef.current) ro.observe(panelRef.current);
+    return () => {
+      ro.disconnect();
+      document.body.style.paddingBottom = "";
+      document.documentElement.style.setProperty("--osk-height", "0px");
+    };
+  }, [open]);
 
   const isTypable = (el: Element | null): el is HTMLInputElement | HTMLTextAreaElement => {
     if (!el) return false;
@@ -125,6 +156,7 @@ export function VirtualKeyboard() {
 
   return (
     <div
+      ref={panelRef}
       className="spark-osk fixed inset-x-0 bottom-0 z-[60] border-t border-border bg-card shadow-2xl"
       onMouseDown={(e) => e.preventDefault()}
       onTouchStart={(e) => {
