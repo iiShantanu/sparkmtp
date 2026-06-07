@@ -9,6 +9,13 @@ set -euo pipefail
 SPARK_URL="https://sparkmtp.lovable.app/student"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Display rotation (config.txt display_*_rotate values):
+#   0 = landscape (no rotation)
+#   1 = portrait, 90° clockwise   (default — matches the 7" Touch Display 2 mounted upright)
+#   2 = upside down
+#   3 = portrait, 90° counter-clockwise
+SPARK_DISPLAY_ROTATE="${SPARK_DISPLAY_ROTATE:-1}"
+
 say()  { printf "\n\033[1;36m==>\033[0m %s\n" "$*"; }
 ok()   { printf "  \033[1;32m✓\033[0m %s\n" "$*"; }
 warn() { printf "  \033[1;33m!\033[0m %s\n" "$*"; }
@@ -51,6 +58,7 @@ ok "SSH enabled and running"
 say "Installing base packages (Chromium, X, Python, NetworkManager, Bluetooth)"
 apt-get install -y \
   xserver-xorg xinit x11-xserver-utils \
+  x11-utils \
   chromium-browser chromium-codecs-ffmpeg-extra \
   python3 python3-pip python3-flask python3-flask-cors \
   network-manager bluez bluez-tools rfkill \
@@ -186,6 +194,24 @@ xset s off
 xset -dpms
 xset s noblank
 
+# Re-assert rotation at the X layer (covers HDMI panels where display_hdmi_rotate
+# is ignored). Safe no-op if the display is already correctly oriented.
+PRIMARY="\$(xrandr 2>/dev/null | awk '/ connected/ {print \$1; exit}')"
+if [ -n "\$PRIMARY" ] && [ "${SPARK_DISPLAY_ROTATE}" = "1" ]; then
+  xrandr --output "\$PRIMARY" --rotate right >/dev/null 2>&1 || true
+elif [ -n "\$PRIMARY" ] && [ "${SPARK_DISPLAY_ROTATE}" = "3" ]; then
+  xrandr --output "\$PRIMARY" --rotate left >/dev/null 2>&1 || true
+elif [ -n "\$PRIMARY" ] && [ "${SPARK_DISPLAY_ROTATE}" = "2" ]; then
+  xrandr --output "\$PRIMARY" --rotate inverted >/dev/null 2>&1 || true
+fi
+
+# Read the real, post-rotation screen size so Chromium opens at the true panel
+# dimensions instead of guessing. Falls back to 1280x720 if xdpyinfo is missing.
+DIMS="\$(xdpyinfo 2>/dev/null | awk '/dimensions:/ {print \$2; exit}')"
+if [ -z "\$DIMS" ]; then DIMS="1280x720"; fi
+SCREEN_W="\${DIMS%x*}"
+SCREEN_H="\${DIMS#*x}"
+
 # Hide mouse cursor when idle (optional, harmless if unclutter missing)
 command -v unclutter >/dev/null 2>&1 && unclutter -idle 1 -root &
 
@@ -196,9 +222,17 @@ exec "\$CHROMIUM_BIN" \\
   --password-store=basic \\
   --kiosk \\
   --start-fullscreen \\
+  --window-position=0,0 \\
+  --window-size=\${SCREEN_W},\${SCREEN_H} \\
+  --force-device-scale-factor=1 \\
+  --high-dpi-support=1 \\
+  --hide-scrollbars \\
+  --overscroll-history-navigation=0 \\
+  --disable-pinch \\
   --disable-session-crashed-bubble \\
   --disable-infobars \\
   --noerrdialogs \\
+  --check-for-update-interval=31536000 \\
   ${SPARK_URL}
 EOF
 chmod 0755 "${SPARK_HOME}/.xinitrc"
@@ -221,6 +255,36 @@ EOF
 fi
 chown "${SPARK_USER}:${SPARK_USER}" "$BP"
 ok "Kiosk auto-start wired (recovery: export SPARK_DISABLE_KIOSK=1)"
+
+# -----------------------------------------------------------------------------
+# 8b. Display rotation (firmware level) for portrait kiosks
+# -----------------------------------------------------------------------------
+say "Configuring display rotation (SPARK_DISPLAY_ROTATE=${SPARK_DISPLAY_ROTATE})"
+
+# Bookworm puts firmware config under /boot/firmware/; older images use /boot/
+CONFIG_TXT=""
+for candidate in /boot/firmware/config.txt /boot/config.txt; do
+  if [[ -f "$candidate" ]]; then CONFIG_TXT="$candidate"; break; fi
+done
+
+if [[ -n "$CONFIG_TXT" ]]; then
+  # Strip any previous Spark-managed block, then append a fresh one.
+  if grep -q "# >>> spark-display >>>" "$CONFIG_TXT"; then
+    sed -i '/# >>> spark-display >>>/,/# <<< spark-display <<</d' "$CONFIG_TXT"
+  fi
+  cat >> "$CONFIG_TXT" <<EOF
+
+# >>> spark-display >>>
+# Managed by raspberry-pi/setup.sh — edit SPARK_DISPLAY_ROTATE and re-run.
+disable_overscan=1
+display_lcd_rotate=${SPARK_DISPLAY_ROTATE}
+display_hdmi_rotate=${SPARK_DISPLAY_ROTATE}
+# <<< spark-display <<<
+EOF
+  ok "Wrote display rotation block to ${CONFIG_TXT}"
+else
+  warn "Could not find /boot/firmware/config.txt or /boot/config.txt — skipping rotation"
+fi
 
 # -----------------------------------------------------------------------------
 # 9. Final summary
@@ -246,6 +310,7 @@ cat <<SUMMARY
   Username:               ${SPARK_USER}
   IP Address:             ${IP_ADDR}
   Spark URL:              ${SPARK_URL}
+  Display Rotation:       ${SPARK_DISPLAY_ROTATE} (0=landscape, 1=portrait CW, 2=180°, 3=portrait CCW)
   SSH Status:             ${ssh_status}
   Device Service Status:  ${dev_status}
   API Status:             ${api_status}

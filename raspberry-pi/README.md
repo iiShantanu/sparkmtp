@@ -128,12 +128,32 @@ Chromium is launched with `--password-store=basic`, so it never talks to a
 system keyring.
 
 ### Raspberry Pi Touch Display 2 — important
-Do **not** edit `/boot/firmware/config.txt` or `/boot/firmware/cmdline.txt`
-with `display_rotate`, `framebuffer_width`, `framebuffer_height`, `video=DSI-1`,
-or `rotate=`. During testing these caused framebuffer corruption and
-half-screen rendering on the official Touch Display 2. The installer leaves
-display configuration completely untouched. Rotate via the desktop settings
-only if you are running a desktop session for another purpose.
+The installer manages display rotation for you. By default it writes a
+`# >>> spark-display >>>` block to `/boot/firmware/config.txt` setting
+`display_lcd_rotate=1` and `display_hdmi_rotate=1` (portrait, 90° clockwise) —
+the correct orientation for the 7" Touch Display 2 mounted upright. `.xinitrc`
+also re-asserts the rotation via `xrandr` and reads the real post-rotation
+screen size from `xdpyinfo`, so Chromium always opens at the panel's true
+dimensions and fills the whole display.
+
+To install for a landscape kiosk instead:
+
+```bash
+SPARK_DISPLAY_ROTATE=0 bash setup.sh
+```
+
+Valid values: `0` landscape, `1` portrait CW (default), `2` upside-down,
+`3` portrait CCW. To change rotation after install, edit the
+`# >>> spark-display >>>` block in `/boot/firmware/config.txt` (or re-run
+setup with a new `SPARK_DISPLAY_ROTATE`) and reboot.
+
+If the kiosk still renders into only part of the screen:
+
+```bash
+DISPLAY=:0 xdpyinfo | grep dimensions   # actual X screen size
+DISPLAY=:0 xrandr                       # connected output + current rotation
+grep -A4 'spark-display' /boot/firmware/config.txt
+```
 
 ### "I see the desktop instead of Chromium"
 - Re-run `sudo bash setup.sh` — it idempotently re-applies the console autologin
