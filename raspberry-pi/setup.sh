@@ -58,7 +58,7 @@ ok "SSH enabled and running"
 say "Installing base packages (Chromium, X, Python, NetworkManager, Bluetooth)"
 apt-get install -y \
   xserver-xorg xinit x11-xserver-utils \
-  x11-utils \
+  x11-utils xinput \
   chromium-browser chromium-codecs-ffmpeg-extra \
   python3 python3-pip python3-flask python3-flask-cors \
   network-manager bluez bluez-tools rfkill \
