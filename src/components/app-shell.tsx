@@ -1,7 +1,8 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Sparkles, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
+import { SparkLogo } from "@/components/spark-logo";
 
 export type NavItem = { to: string; label: string; icon: ReactNode };
 
@@ -27,11 +28,8 @@ export function AppShell({
   return (
     <div className="flex min-h-screen bg-background">
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-border bg-sidebar text-sidebar-foreground md:flex">
-        <div className="flex items-center gap-2 px-5 py-5 font-semibold">
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-foreground">
-            <Sparkles className="h-4 w-4" />
-          </span>
-          Spark
+        <div className="flex items-center px-5 py-4">
+          <SparkLogo size="md" />
         </div>
         <div className="px-3 pb-2 text-xs uppercase tracking-wider text-muted-foreground">
           {title}
@@ -70,10 +68,7 @@ export function AppShell({
       </aside>
       <main className="min-w-0 flex-1">
         <header className="flex items-center justify-between border-b border-border px-6 py-4 md:hidden">
-          <div className="flex items-center gap-2 font-semibold">
-            <Sparkles className="h-4 w-4 text-primary" />
-            Spark
-          </div>
+          <SparkLogo size="sm" />
           <button onClick={signOut} className="text-sm text-muted-foreground">
             Sign out
           </button>

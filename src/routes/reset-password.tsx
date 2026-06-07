@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getMe } from "@/lib/auth.functions";
-import { Sparkles } from "lucide-react";
+import { SparkLogo } from "@/components/spark-logo";
 
 export const Route = createFileRoute("/reset-password")({
   head: () => ({ meta: [{ title: "Set new password — Spark" }] }),
@@ -51,11 +51,8 @@ function ResetPasswordPage() {
   return (
     <div className="grid min-h-screen place-items-center bg-background p-6">
       <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-sm">
-        <div className="mb-6 flex items-center gap-2 font-semibold">
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-foreground">
-            <Sparkles className="h-4 w-4" />
-          </span>
-          Spark
+        <div className="mb-6 flex justify-center">
+          <SparkLogo size="lg" />
         </div>
         <h1 className="text-xl font-semibold">Set a new password</h1>
         <p className="mt-1 text-sm text-muted-foreground">

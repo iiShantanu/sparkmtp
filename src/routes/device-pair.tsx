@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, useEffect } from "react";
-import { Sparkles } from "lucide-react";
+import { SparkLogo } from "@/components/spark-logo";
 import { devicePair } from "@/lib/device.functions";
 
 export const Route = createFileRoute("/device-pair")({
@@ -40,10 +40,8 @@ function DevicePairPage() {
   return (
     <main className="grid min-h-screen place-items-center bg-background p-6">
       <div className="w-full max-w-md rounded-2xl border border-border bg-card p-8 shadow-sm">
-        <div className="mb-6 flex items-center gap-2">
-          <span className="grid h-10 w-10 place-items-center rounded-xl bg-primary text-primary-foreground">
-            <Sparkles className="h-5 w-5" />
-          </span>
+        <div className="mb-6 flex items-center gap-3">
+          <SparkLogo size="md" />
           <div>
             <h1 className="text-xl font-semibold">Pair this tablet</h1>
             <p className="text-sm text-muted-foreground">
