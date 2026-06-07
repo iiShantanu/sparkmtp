@@ -13,10 +13,10 @@ import {
   adminListStudents,
 } from "@/lib/admin.functions";
 
-const invitesQO = queryOptions({ queryKey: ["admin", "invitations"], queryFn: () => adminListInvitations() });
-const subjectsQO = queryOptions({ queryKey: ["admin", "subjects"], queryFn: () => listSubjects() });
-const classesQO = queryOptions({ queryKey: ["admin", "classes"], queryFn: () => adminListClasses() });
-const studentsQO = queryOptions({ queryKey: ["admin", "students"], queryFn: () => adminListStudents() });
+export const invitesQO = queryOptions({ queryKey: ["admin", "invitations"], queryFn: () => adminListInvitations() });
+export const subjectsQO = queryOptions({ queryKey: ["admin", "subjects"], queryFn: () => listSubjects() });
+export const classesQO = queryOptions({ queryKey: ["admin", "classes"], queryFn: () => adminListClasses() });
+export const studentsQO = queryOptions({ queryKey: ["admin", "students"], queryFn: () => adminListStudents() });
 
 export const Route = createFileRoute("/_authenticated/admin/invitations")({
   loader: ({ context }) =>

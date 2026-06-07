@@ -7,10 +7,10 @@ import { PageHeader } from "@/components/app-shell";
 import { createNotice, deleteNotice, listMyNotices } from "@/lib/teacher-notices.functions";
 import { listStudents, listMySubjects, listClasses } from "@/lib/teacher.functions";
 
-const noticesQO = queryOptions({ queryKey: ["teacher", "notices"], queryFn: () => listMyNotices() });
-const studentsQO = queryOptions({ queryKey: ["teacher", "students"], queryFn: () => listStudents() });
-const subjectsQO = queryOptions({ queryKey: ["teacher", "subjects"], queryFn: () => listMySubjects() });
-const classesQO = queryOptions({ queryKey: ["teacher", "classes"], queryFn: () => listClasses() });
+export const noticesQO = queryOptions({ queryKey: ["teacher", "notices"], queryFn: () => listMyNotices() });
+export const studentsQO = queryOptions({ queryKey: ["teacher", "students"], queryFn: () => listStudents() });
+export const subjectsQO = queryOptions({ queryKey: ["teacher", "subjects"], queryFn: () => listMySubjects() });
+export const classesQO = queryOptions({ queryKey: ["teacher", "classes"], queryFn: () => listClasses() });
 
 export const Route = createFileRoute("/_authenticated/teacher/notices")({
   loader: ({ context }) =>
