@@ -654,49 +654,42 @@ function ToolsPanel({
   openHomework: (h: Homework) => void;
 }) {
   return (
-    <div className="mx-auto max-w-5xl space-y-6 px-6 pt-6 pb-20">
+    <div className="mx-auto w-full max-w-md space-y-5 px-3 pt-3 pb-16">
       <div>
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Your tools
-        </h2>
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <ToolTile icon={<Brain className="h-5 w-5" />} label="Quiz" onClick={openQuiz} disabled={!online} />
-          <ToolTile icon={<MessageSquare className="h-5 w-5" />} label="Messages" onClick={openMessages} disabled={!online} />
-          <ToolTile icon={<MusicIcon className="h-5 w-5" />} label="Music" onClick={openMusic} />
-          <ToolTile icon={<Timer className="h-5 w-5" />} label="Pomodoro" onClick={openPomodoro} />
-          <ToolTile icon={<Wifi className="h-5 w-5" />} label="Wi-Fi" onClick={openWifi} />
-          <ToolTile icon={<Bluetooth className="h-5 w-5" />} label="Bluetooth" onClick={openBluetooth} />
-          <ToolTile icon={<Bell className="h-5 w-5" />} label="Notices" onClick={openNotices} />
-          <ToolTile icon={<BookOpen className="h-5 w-5" />} label="Homework" onClick={() => {
-            const first = homework[0];
-            if (first) openHomework(first);
-          }} disabled={homework.length === 0 || !online} />
+        <h2 className="px-1 text-xl font-bold">Tools</h2>
+        <div className="mt-3 grid grid-cols-3 gap-2.5">
+          <ToolTile icon={<Brain className="h-7 w-7" />} label="Quiz" onClick={openQuiz} disabled={!online} />
+          <ToolTile icon={<MessageSquare className="h-7 w-7" />} label="Messages" onClick={openMessages} disabled={!online} />
+          <ToolTile icon={<MusicIcon className="h-7 w-7" />} label="Music" onClick={openMusic} />
+          <ToolTile icon={<Timer className="h-7 w-7" />} label="Pomodoro" onClick={openPomodoro} />
+          <ToolTile icon={<Wifi className="h-7 w-7" />} label="Wi-Fi" onClick={openWifi} />
+          <ToolTile icon={<Bluetooth className="h-7 w-7" />} label="Bluetooth" onClick={openBluetooth} />
         </div>
       </div>
 
       <div>
-        <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          <BookOpen className="h-3.5 w-3.5" /> Today's homework
-        </h2>
+        <h2 className="px-1 text-xl font-bold">Homework</h2>
         {homework.length === 0 ? (
-          <p className="mt-3 rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-            Nothing assigned right now. 🎉
+          <p className="mt-3 rounded-xl border border-dashed border-border p-5 text-center text-base text-muted-foreground">
+            Nothing for today 🎉
           </p>
         ) : (
-          <ul className="mt-3 grid gap-3 sm:grid-cols-2">
+          <ul className="mt-3 space-y-2">
             {homework.map((h) => (
               <li key={h.id}>
                 <button
                   onClick={() => openHomework(h)}
-                  className="w-full rounded-xl border border-border bg-card p-4 text-left transition hover:border-primary"
+                  className="w-full rounded-xl border border-border bg-card p-4 text-left transition active:scale-[0.98] hover:border-primary"
                 >
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                    {h.subject}
-                  </div>
-                  <div className="mt-1 text-base font-semibold">{h.title}</div>
+                  {h.subject && (
+                    <div className="text-sm font-semibold uppercase tracking-wide text-primary">
+                      {h.subject}
+                    </div>
+                  )}
+                  <div className="mt-0.5 text-base font-semibold leading-tight">{h.title}</div>
                   {h.due_at && (
-                    <div className="mt-2 text-xs text-muted-foreground">
-                      Due {new Date(h.due_at).toLocaleString()}
+                    <div className="mt-1.5 text-sm text-muted-foreground">
+                      Due {new Date(h.due_at).toLocaleDateString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}
                     </div>
                   )}
                 </button>
