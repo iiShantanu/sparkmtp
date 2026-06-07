@@ -136,15 +136,6 @@ function StudentTablet() {
   const [noticesOpen, setNoticesOpen] = useState(false);
   const dismissedRef = useRef<Set<string>>(loadDismissed());
   const [, forceRender] = useState(0);
-  const [bigMode, setBigMode] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem("spark_big_mode") === "1";
-  });
-  useEffect(() => {
-    try {
-      localStorage.setItem("spark_big_mode", bigMode ? "1" : "0");
-    } catch {}
-  }, [bigMode]);
 
   useEffect(() => {
     const t = typeof window !== "undefined" ? localStorage.getItem("spark_device_token") : null;
@@ -265,19 +256,6 @@ function StudentTablet() {
           )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <button
-            onClick={() => setBigMode((v) => !v)}
-            className={`grid h-11 w-11 place-items-center rounded-full border-2 transition ${
-              bigMode
-                ? "border-foreground bg-foreground text-background"
-                : "border-border text-foreground hover:bg-accent"
-            }`}
-            aria-label={bigMode ? "Turn off large text mode" : "Turn on large text mode"}
-            aria-pressed={bigMode}
-            title="Big & Bold"
-          >
-            <Type className="h-5 w-5" />
-          </button>
           <button
             onClick={() => setNoticesOpen(true)}
             className="relative grid h-11 w-11 place-items-center rounded-full border border-border text-foreground hover:bg-accent"
