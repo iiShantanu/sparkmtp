@@ -422,6 +422,7 @@ function StudentTablet() {
       {tool === "pomodoro" && <Pomodoro onClose={() => setTool(null)} token={token} />}
       {tool === "wifi" && <WifiPanel onClose={() => setTool(null)} />}
       {tool === "bt" && <BluetoothPanel onClose={() => setTool(null)} />}
+      <VirtualKeyboard />
     </div>
   );
 }
