@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Loader2, Mic, MicOff, Send, X } from "lucide-react";
+import { Loader2, Mic, MicOff, X } from "lucide-react";
 import { ConversationProvider, useConversation } from "@elevenlabs/react";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -34,7 +34,6 @@ function VoiceModeInner({
   const summarize = useServerFn(summarizeVoiceSession);
   const [warning, setWarning] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
-  const [textInput, setTextInput] = useState("");
   const [transcript, setTranscript] = useState<Array<{ role: string; text: string }>>([]);
   const transcriptRef = useRef<Array<{ role: string; text: string }>>([]);
   const startedRef = useRef(false);
@@ -237,32 +236,6 @@ function VoiceModeInner({
           ))}
         </div>
       )}
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          const text = textInput.trim();
-          if (!text || !connected) return;
-          conv.sendUserMessage(text);
-          appendLine("you", text);
-          setTextInput("");
-        }}
-        className="flex gap-2"
-      >
-        <input
-          value={textInput}
-          onChange={(e) => setTextInput(e.target.value)}
-          placeholder={connected ? "Or type to Spark…" : "Start the conversation to type"}
-          disabled={!connected}
-          className="flex-1 rounded-md border border-input bg-background px-3 py-2.5 text-sm disabled:opacity-50"
-        />
-        <button
-          type="submit"
-          disabled={!connected || !textInput.trim()}
-          className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-        >
-          <Send className="h-4 w-4" /> Send
-        </button>
-      </form>
     </div>
   );
 }
