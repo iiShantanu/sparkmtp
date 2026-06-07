@@ -19,12 +19,26 @@ from typing import Any
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
-ALLOWED_ORIGINS = [
-    "https://bloom-classroom-hub.lovable.app",
+# Origins the kiosk page may be loaded from. The Pi calls back into
+# http://127.0.0.1:8765 from whichever origin the browser is on, so every
+# valid front-end URL must be listed here or Flask-CORS will reject the
+# request and the panels will look like "device service unavailable" even
+# though the service is healthy.
+#
+# Add more origins at deploy time by setting SPARK_ALLOWED_ORIGINS to a
+# comma-separated list, e.g.:
+#     SPARK_ALLOWED_ORIGINS=https://my-fork.example,https://staging.example
+DEFAULT_ALLOWED_ORIGINS = [
+    "https://sparkmtp.lovable.app",
+    "https://spark.brightstudio.io",
     "https://id-preview--6f1d38b2-3248-4f98-99b3-14092af7ace6.lovable.app",
     "http://localhost",
+    "http://localhost:8080",
     "http://127.0.0.1",
+    "http://127.0.0.1:8080",
 ]
+_extra = [o.strip() for o in os.environ.get("SPARK_ALLOWED_ORIGINS", "").split(",") if o.strip()]
+ALLOWED_ORIGINS = DEFAULT_ALLOWED_ORIGINS + _extra
 
 app = Flask(__name__)
 CORS(app, origins=ALLOWED_ORIGINS, supports_credentials=False)

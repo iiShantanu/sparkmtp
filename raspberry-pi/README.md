@@ -184,6 +184,30 @@ name to the `case` block in `setup.sh` and re-run the installer.
 - Confirm boot target: `systemctl get-default` → should be `multi-user.target`.
 - Confirm tty1 autologin: `cat /etc/systemd/system/getty@tty1.service.d/autologin.conf`.
 
+### Wi-Fi / Bluetooth panels say "device service unavailable"
+
+Almost always a CORS mismatch: the helper service only accepts requests from
+origins listed in `ALLOWED_ORIGINS` inside `spark-device-service.py`. The
+published kiosk URL (`https://sparkmtp.lovable.app`), the custom domain
+(`https://spark.brightstudio.io`), the preview URL, and `localhost` are all
+included by default. If you fork the app to a new URL, add it via env var
+without editing Python:
+
+```bash
+sudo systemctl edit spark-device
+# In the editor, add:
+# [Service]
+# Environment=SPARK_ALLOWED_ORIGINS=https://your-site.example
+sudo systemctl restart spark-device
+```
+
+Verify from the Pi (replace the Origin with your kiosk URL):
+
+```bash
+curl -i -H 'Origin: https://sparkmtp.lovable.app' http://127.0.0.1:8765/health
+# Look for: Access-Control-Allow-Origin: https://sparkmtp.lovable.app
+```
+
 ### Reset everything
 ```bash
 sudo systemctl set-default graphical.target   # restore normal desktop boot
