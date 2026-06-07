@@ -874,9 +874,9 @@ function ToolTile({
     <button
       onClick={onClick}
       disabled={disabled}
-      className="flex aspect-square flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-card p-2 text-base font-semibold transition active:scale-95 hover:border-primary hover:bg-accent disabled:opacity-50"
+      className="flex aspect-square flex-col items-center justify-center gap-3 rounded-3xl border border-border bg-card p-4 text-lg font-semibold transition active:scale-95 hover:border-primary hover:bg-accent disabled:opacity-50"
     >
-      <span className="grid h-12 w-12 place-items-center rounded-xl bg-primary/10 text-primary">{icon}</span>
+      <span className="grid h-20 w-20 place-items-center rounded-2xl bg-primary/10 text-primary">{icon}</span>
       {label}
     </button>
   );
