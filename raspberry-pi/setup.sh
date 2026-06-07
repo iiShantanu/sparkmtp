@@ -16,6 +16,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 #   3 = portrait, 90° counter-clockwise
 SPARK_DISPLAY_ROTATE="${SPARK_DISPLAY_ROTATE:-1}"
 
+# Touch coordinate transformation:
+#   auto     = let libinput/kernel handle rotation (default — correct for the
+#              Raspberry Pi Touch Display 2 and most DSI panels). Picks identity.
+#   match    = apply the xinput CTM that matches SPARK_DISPLAY_ROTATE.
+#              Use this only if touch axes are swapped/inverted after rotation
+#              AND the panel driver does NOT auto-rotate touch input.
+#   "<9 floats>" = explicit matrix, e.g. "0 1 0 -1 0 1 0 0 1"
+SPARK_TOUCH_MATRIX="${SPARK_TOUCH_MATRIX:-auto}"
+
 say()  { printf "\n\033[1;36m==>\033[0m %s\n" "$*"; }
 ok()   { printf "  \033[1;32m✓\033[0m %s\n" "$*"; }
 warn() { printf "  \033[1;33m!\033[0m %s\n" "$*"; }
