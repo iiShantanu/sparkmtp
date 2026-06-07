@@ -161,11 +161,28 @@ The installer makes the kiosk truly touch-only:
 
 - **No mouse pointer.** `~/.xserverrc` launches the X server with `-nocursor`,
   so a cursor is never drawn. `unclutter -idle 0` runs as a backup.
-- **Touch axes match the rotated display.** Right after `xrandr` rotates the
-  picture, `.xinitrc` applies a matching *Coordinate Transformation Matrix* to
-  every touchscreen device via `xinput`. Without this, the picture is portrait
-  but the touchscreen still reports landscape coordinates, so a horizontal
-  finger swipe registers as vertical movement.
+- **Touch axes match the rotated display.** On the Raspberry Pi Touch
+  Display 2 the kernel/libinput already rotates touch input together with
+  the panel, so by default we apply the identity matrix
+  (`SPARK_TOUCH_MATRIX=auto`). If you mount a third-party touchscreen whose
+  driver does NOT auto-rotate, install with `SPARK_TOUCH_MATRIX=match` so
+  `.xinitrc` applies the `xinput` *Coordinate Transformation Matrix* that
+  matches `SPARK_DISPLAY_ROTATE`. You can also pass an explicit 9-number
+  matrix as the value.
+
+If touch is reversed (vertical finger moves the cursor horizontally) or
+buttons don't register where you tap, your axes are wrong. Try, in order:
+
+```bash
+# 1. Reset to identity (let the kernel handle rotation)
+SPARK_TOUCH_MATRIX=auto bash setup.sh && sudo reboot
+
+# 2. If that doesn't help, apply the rotation-matched matrix
+SPARK_TOUCH_MATRIX=match bash setup.sh && sudo reboot
+
+# 3. Last resort, set an explicit matrix (rotate=1 / right is shown)
+SPARK_TOUCH_MATRIX="0 1 0 -1 0 1 0 0 1" bash setup.sh && sudo reboot
+```
 
 Verify over SSH:
 

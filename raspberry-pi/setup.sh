@@ -16,6 +16,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 #   3 = portrait, 90° counter-clockwise
 SPARK_DISPLAY_ROTATE="${SPARK_DISPLAY_ROTATE:-1}"
 
+# Touch coordinate transformation:
+#   auto     = let libinput/kernel handle rotation (default — correct for the
+#              Raspberry Pi Touch Display 2 and most DSI panels). Picks identity.
+#   match    = apply the xinput CTM that matches SPARK_DISPLAY_ROTATE.
+#              Use this only if touch axes are swapped/inverted after rotation
+#              AND the panel driver does NOT auto-rotate touch input.
+#   "<9 floats>" = explicit matrix, e.g. "0 1 0 -1 0 1 0 0 1"
+SPARK_TOUCH_MATRIX="${SPARK_TOUCH_MATRIX:-auto}"
+
 say()  { printf "\n\033[1;36m==>\033[0m %s\n" "$*"; }
 ok()   { printf "  \033[1;32m✓\033[0m %s\n" "$*"; }
 warn() { printf "  \033[1;33m!\033[0m %s\n" "$*"; }
@@ -206,21 +215,32 @@ xset s noblank
 # Re-assert rotation at the X layer (covers HDMI panels where display_hdmi_rotate
 # is ignored). Safe no-op if the display is already correctly oriented.
 PRIMARY="\$(xrandr 2>/dev/null | awk '/ connected/ {print \$1; exit}')"
-TOUCH_MATRIX="1 0 0 0 1 0 0 0 1"  # default = no rotation
+MATCH_MATRIX="1 0 0 0 1 0 0 0 1"
 if [ -n "\$PRIMARY" ] && [ "${SPARK_DISPLAY_ROTATE}" = "1" ]; then
   xrandr --output "\$PRIMARY" --rotate right >/dev/null 2>&1 || true
-  TOUCH_MATRIX="0 1 0 -1 0 1 0 0 1"
+  MATCH_MATRIX="0 1 0 -1 0 1 0 0 1"
 elif [ -n "\$PRIMARY" ] && [ "${SPARK_DISPLAY_ROTATE}" = "3" ]; then
   xrandr --output "\$PRIMARY" --rotate left >/dev/null 2>&1 || true
-  TOUCH_MATRIX="0 -1 1 1 0 0 0 0 1"
+  MATCH_MATRIX="0 -1 1 1 0 0 0 0 1"
 elif [ -n "\$PRIMARY" ] && [ "${SPARK_DISPLAY_ROTATE}" = "2" ]; then
   xrandr --output "\$PRIMARY" --rotate inverted >/dev/null 2>&1 || true
-  TOUCH_MATRIX="-1 0 1 0 -1 1 0 0 1"
+  MATCH_MATRIX="-1 0 1 0 -1 1 0 0 1"
 fi
 
-# Apply the matching coordinate transformation matrix to every touchscreen
-# device, so a horizontal finger swipe maps to a horizontal screen movement
-# after the picture is rotated. Filters by common touchscreen name markers.
+# Decide which CTM to apply to touchscreens.
+#   auto     -> identity (libinput already rotates touch with the panel on
+#               the Pi Touch Display 2 — applying a matrix on top swaps axes
+#               and breaks button taps).
+#   match    -> the matrix matching SPARK_DISPLAY_ROTATE above.
+#   "a b c d e f g h i" -> use that explicit matrix verbatim.
+case "${SPARK_TOUCH_MATRIX}" in
+  auto)  TOUCH_MATRIX="1 0 0 0 1 0 0 0 1" ;;
+  match) TOUCH_MATRIX="\$MATCH_MATRIX" ;;
+  *)     TOUCH_MATRIX="${SPARK_TOUCH_MATRIX}" ;;
+esac
+
+# Apply the matrix to every touchscreen device. Filters by common
+# touchscreen name markers so we don't clobber mice / trackpads.
 if command -v xinput >/dev/null 2>&1; then
   xinput --list --name-only 2>/dev/null | while IFS= read -r dev; do
     case "\$dev" in
