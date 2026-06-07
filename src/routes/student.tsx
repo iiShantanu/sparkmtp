@@ -7,6 +7,8 @@ import {
   BookOpen,
   Brain,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Flame,
   Loader2,
   MessageSquare,
