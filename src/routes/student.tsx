@@ -15,6 +15,8 @@ import {
   Mic,
   MicOff,
   Music as MusicIcon,
+  NotebookPen,
+  ListChecks,
   Send,
   Sparkles,
   Timer,
@@ -44,6 +46,8 @@ import { MusicPlayer } from "@/components/student/music-player";
 import { WifiPanel } from "@/components/student/wifi-panel";
 import { BluetoothPanel } from "@/components/student/bluetooth-panel";
 import { MessagesPanel } from "@/components/student/messages-panel";
+import { NotesPanel } from "@/components/student/notes-panel";
+import { TodoPanel } from "@/components/student/todo-panel";
 import { useOnline } from "@/hooks/use-online";
 import { VirtualKeyboard } from "@/components/student/virtual-keyboard";
 
@@ -110,7 +114,7 @@ type Streak = {
 };
 
 type Overlay = null | "voice" | "chat" | "quiz" | "messages";
-type Tool = null | "music" | "pomodoro" | "wifi" | "bt";
+type Tool = null | "music" | "pomodoro" | "wifi" | "bt" | "notes" | "todo";
 
 function StudentTablet() {
   const navigate = useNavigate();
