@@ -566,10 +566,10 @@ function SparkPanel({
         </button>
       )}
 
-      {/* Hero */}
-      <div className="flex flex-1 items-center justify-center">
+      {/* Hero — fixed area so chat box & tools don't shift when voice mounts */}
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden">
         {!voiceActive ? (
-          <div className="flex flex-col items-center gap-6">
+          <div className="flex h-full w-full flex-col items-center justify-center gap-6">
             <SparkAvatar emotion="friendly" size={200} showLabel={false} />
             <button
               onClick={startVoice}
@@ -583,7 +583,7 @@ function SparkPanel({
             )}
           </div>
         ) : (
-          <div className="w-full">
+          <div className="flex h-full w-full min-h-0 flex-col">
             <ClientOnly fallback={<div className="p-6 text-center text-base text-muted-foreground">Loading voice…</div>}>
               <Suspense fallback={<div className="p-6 text-center text-base text-muted-foreground">Loading voice…</div>}>
                 <VoiceMode
