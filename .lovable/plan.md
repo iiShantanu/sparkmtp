@@ -1,57 +1,73 @@
+# Class-10 Student Page Redesign
+
 ## Goal
+Reimagine `/student` for class-10 students as a calm, focused, single-tap experience. Replace the current dense vertical dashboard with **two horizontally-scrollable, full-viewport panels**, keeping the existing top navigation bar.
 
-Replace the current turn-based voice loop in **Talk to Spark** with a true real-time conversation powered by the ElevenLabs Conversational AI **agent** (the one configured via `ELEVENLABS_AGENT_ID`). Today the overlay calls `runSparkVoiceTurn` (STT → Lovable AI LLM → TTS) which feels exactly like the chat box. After this change, Spark will stream audio both ways through the ElevenLabs agent — student speaks, Spark hears in real-time and replies immediately with its own voice and persona, with natural interruption support.
+```text
+┌──────────────────── Top Nav (kept) ────────────────────┐
+│ Hi, name · Clock · Streak · Wi-Fi · BT · Notices       │
+├────────────────────────────────────────────────────────┤
+│  PANEL 1  (snap)            │   PANEL 2  (snap)        │
+│  ┌───────────────────────┐  │   ┌───────────────────┐  │
+│  │   Big Spark avatar    │  │   │  Quiz   Messages  │  │
+│  │   "Talk to Spark"     │  │   │  Music  Pomodoro  │  │
+│  │   (single CTA)        │  │   │  Wi-Fi  Bluetooth │  │
+│  │                       │  │   │  Notices  Homework│  │
+│  │  ── Chat with Spark ──│  │   │                   │  │
+│  │   [type a message…]   │  │   │                   │  │
+│  └───────────────────────┘  │   └───────────────────┘  │
+│   ● ○  (dot indicator + swipe hint →)                  │
+└────────────────────────────────────────────────────────┘
+```
 
-The Quiz mode and the Chat (text) mode are NOT changed in this plan — only Talk to Spark.
+## Panel 1 — Spark (default view)
+- Hero Spark avatar, large, centered, with ambient pulse.
+- **One single primary action: "Talk to Spark"**. No "Done speaking", no "Try again" sitting on the home screen.
+- Tapping it immediately:
+  1. Requests mic permission (user gesture).
+  2. Mounts `VoiceMode` inline in the panel (not as overlay) with `autoStart`, so the ElevenLabs agent connects and greets without any second tap.
+  3. Avatar reflects live state (listening / speaking / thinking) from the existing `useConversation` hook.
+- A subtle "End conversation" appears **only while connected**, anchored at the bottom of the hero area.
+- Below the hero, a permanently visible **"Chat with Spark"** strip: a single inline text composer (`input + send`) that opens the chat overlay seeded with the typed message. No separate "Chat with Spark" button card — typing is the entry point.
+- Today's goal + streak collapse into a small inline chip under the avatar (kept, but de-emphasised).
 
-## What changes
+## Panel 2 — Tools
+- Title: "Your tools".
+- Large, friendly, equal-size tiles in a 2-column grid (touch-friendly for tablets):
+  - Quiz, Messages, Homework, Music, Pomodoro, Wi-Fi, Bluetooth, Notices.
+- Each tile opens its existing overlay/tool (`setOverlay` / `setTool`) — no behaviour change to the tools themselves.
+- Homework tile expands to show today's homework list inline (reuses existing data; tapping a card still launches the voice/homework flow on Panel 1).
 
-### 1. `src/routes/student.tsx` — rewrite `VoiceMode`
+## Horizontal scroll behaviour
+- Container: `flex overflow-x-auto snap-x snap-mandatory scroll-smooth`, each panel `w-screen h-[calc(100vh-navH)] snap-center shrink-0`.
+- Hidden scrollbar; momentum scroll on touch.
+- Bottom-center **dot indicator** (2 dots) showing current panel; tapping a dot scrolls to that panel.
+- Right-edge chevron hint on Panel 1, left-edge chevron on Panel 2, fading out after first scroll.
+- Keyboard: ← / → arrows switch panels.
 
-Replace the entire `MediaRecorder` / `runSparkVoiceTurn` / `playSparkAudio` flow with the `@elevenlabs/react` SDK (already installed at `^1.6.4`).
+## What stays the same
+- Top navigation bar (logo, name, clock, streak, Wi-Fi/BT/Notices buttons).
+- All existing overlays: voice mode (now also inline on Panel 1), chat, quiz, messages.
+- All server functions, data flow, auth/device-token logic, ElevenLabs integration in `src/components/student/voice-mode.tsx`.
+- Notices bell + offline banner behaviour.
 
-- Import `useConversation` from `@elevenlabs/react`.
-- On mount (when `autoStart`), call the existing `startVoiceConversation` server function to fetch `{ agentId, token, systemPrompt, firstMessage, language, overridesEnabled, warning }`. This already injects student context, learning profile, and homework instructions into the prompt.
-- Request mic permission, then call `conversation.startSession({ conversationToken: token, connectionType: "webrtc", overrides: overridesEnabled ? { agent: { prompt: { prompt: systemPrompt }, firstMessage, language } } : undefined })`.
-- Drive the `SparkAvatar` from live SDK state:
-  - `conversation.status === "connected"` and `isSpeaking === true` → `speaking`
-  - connected and not speaking → `listening`
-  - otherwise → `thinking` / `friendly` / `error`
-- Build the on-screen transcript from `onMessage` events (`user_transcript` → "you", `agent_response` / `agent_response_correction` → "spark"). Drop the manual `appendLine` plumbing tied to the old server turn.
-- Replace the "Done speaking" / "Talk again" buttons with a single **End / Resume** control:
-  - While `status === "connected"`: show **End conversation** (calls `endSession`).
-  - While disconnected: show **Talk to Spark** (re-runs the start flow).
-  - Mute toggle button using `setMicMuted` for situations where the student wants Spark to keep talking without interrupting.
-- Keep the existing text composer at the bottom, but route it through `conversation.sendUserMessage(text)` instead of `runSparkTextTurn`, so typed and spoken turns share one conversation.
-- On unmount / overlay close: `await conversation.endSession()`, stop mic tracks, and still call `summarizeVoiceSession` with the captured transcript so the learning-profile update keeps working.
-- Surface `warning` from `startVoiceConversation` (e.g. agent id missing) and `onError` from the hook with a clear inline message and an "error" Spark emotion.
-- Remove now-unused imports: `runSparkVoiceTurn`, `runSparkTextTurn`, `playSparkAudio`, `startBrowserRecording`, `stopBrowserRecording`, and the `RecorderState` ref type — but keep `summarizeVoiceSession`, `runQuizVoiceTurn` (Quiz still uses it), `runHomeworkTurn` (used elsewhere), and the homework picker bar.
-
-### 2. Homework Mode inside the agent call
-
-`startVoiceConversation` already builds a Homework-aware system prompt and first message when `homework_id` is passed. The new `VoiceMode` will:
-
-- Pass `homework_id: activeHomework?.id ?? null` into `startVoiceConversation`.
-- When the student picks a different homework from the in-overlay picker, end the current session and start a new one with the new homework id, so the agent gets a fresh prompt.
-- Keep the existing "Mark done" button and `completeHomework` server call exactly as-is.
-
-### 3. No server / DB / schema changes
-
-- `startVoiceConversation`, `elevenlabs.server.ts`, and `ensureAgentOverridesEnabled` already exist and stay.
-- `runSparkVoiceTurn` stays in the file (still referenced by other utilities/tests historically), but is no longer wired from the UI.
-- Secrets are already set: `ELEVENLABS_AGENT_ID`, `ELEVENLABS_API_KEY`. No `add_secret` call needed.
+## Technical details
+- File: rewrite `src/routes/student.tsx` only (no schema/server changes). `voice-mode.tsx` is reused as-is, but rendered **inline** inside Panel 1 (it already supports inline use; overlay was just a wrapper). The existing `OverlayShell` is still used for Quiz / Chat / Messages and for Voice when launched from a Homework tile (to preserve the homework picker bar).
+- New small components colocated in the route file: `PanelScroller`, `SparkPanel`, `ToolsPanel`, `PanelDots`.
+- Mic permission is requested inside `SparkPanel`'s Talk button click handler (same pattern as today) before flipping a local `voiceActive` flag that mounts `VoiceMode` inline. When the user ends the conversation, the panel returns to the idle "Talk to Spark" CTA.
+- Chat composer on Panel 1 reuses the existing `chat` overlay: typing + Enter (or send icon) sets `chatSeed` and `setOverlay("chat")`.
+- Tailwind only; uses existing semantic tokens (`bg-background`, `bg-card`, `text-primary`, etc.). No new colors.
+- Responsive: on very small screens, panels remain full-width; on desktop preview, panels are capped at `max-w-5xl` centred but still snap.
 
 ## Out of scope
-
-- Quiz mode keeps the current turn-based loop with `runQuizVoiceTurn`.
-- Chat with Spark (text overlay) is unchanged.
-- No design changes to the home screen, homework cards, reminders, or messages panel.
+- No changes to ElevenLabs agent, server functions, or DB.
+- No changes to Quiz mode logic, Chat overlay, Messages overlay.
+- No new tools — only re-grouping existing ones.
 
 ## Validation
-
-1. Open `/student`, tap **Talk to Spark**. Within ~1s of granting mic permission, Spark's voice should greet the student through the ElevenLabs agent (not the browser `speechSynthesis` fallback).
-2. Speak a question without tapping anything — Spark should respond live, and the avatar should switch between `speaking` and `listening` automatically. Interrupting Spark mid-sentence should cut its voice off.
-3. Open a homework card → Talk to Spark; confirm the agent's first line references that homework.
-4. Type into the text composer mid-conversation; confirm the agent answers in the same voice session.
-5. Close the overlay; confirm mic LED turns off (session ended) and `summarizeVoiceSession` fires once.
-6. Quiz still works as before (untouched).
+- Open `/student`: Panel 1 shows the Spark hero + single Talk button + chat composer; nav bar unchanged.
+- Tap "Talk to Spark": mic prompt → agent connects → Spark greets without a second tap; avatar animates with speaking/listening state; "End conversation" appears.
+- Type in the chat strip + Enter: Chat overlay opens with the seed message.
+- Swipe left (or arrow-right): Panel 2 snaps in, showing all tool tiles; dot indicator updates.
+- Tap Quiz / Messages / Music / Pomodoro / Wi-Fi / Bluetooth / Homework: existing overlays/panels open as before.
+- Offline: Talk + Chat + online-only tools become disabled with the existing "Needs Wi-Fi" hint; Music/Pomodoro/Clock still work.
