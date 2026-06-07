@@ -12,6 +12,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { registerSparkPWA } from "../lib/pwa-register";
+import sparkLogoAsset from "../assets/spark-logo.png.asset.json";
 
 function NotFoundComponent() {
   return (
@@ -90,7 +91,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:description", content: "Spark is a teacher-guided AI learning ecosystem for classrooms and homes." },
       { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/907b41ae-7a3f-4bab-9ea5-c580da61e7a3/id-preview-41c5b62b--6f1d38b2-3248-4f98-99b3-14092af7ace6.lovable.app-1780405269923.png" },
       { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/907b41ae-7a3f-4bab-9ea5-c580da61e7a3/id-preview-41c5b62b--6f1d38b2-3248-4f98-99b3-14092af7ace6.lovable.app-1780405269923.png" },
-      { name: "theme-color", content: "#0b1020" },
+      { name: "theme-color", content: "#1B2A52" },
     ],
     links: [
       {
@@ -98,8 +99,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         href: appCss,
       },
       { rel: "manifest", href: "/manifest.webmanifest" },
-      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
-      { rel: "icon", type: "image/png", sizes: "192x192", href: "/pwa-192.png" },
+      { rel: "icon", type: "image/png", href: sparkLogoAsset.url },
+      { rel: "apple-touch-icon", href: sparkLogoAsset.url },
     ],
   }),
   shellComponent: RootShell,

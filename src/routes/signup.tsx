@@ -1,7 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Sparkles, GraduationCap, Users } from "lucide-react";
+import { GraduationCap, Users } from "lucide-react";
+import { SparkLogo } from "@/components/spark-logo";
 
 export const Route = createFileRoute("/signup")({
   head: () => ({ meta: [{ title: "Sign up — Spark" }] }),
@@ -48,11 +49,8 @@ function SignupPage() {
   return (
     <div className="grid min-h-screen place-items-center bg-background p-6">
       <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-sm">
-        <div className="mb-6 flex items-center gap-2 font-semibold">
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-foreground">
-            <Sparkles className="h-4 w-4" />
-          </span>
-          Spark
+        <div className="mb-6 flex justify-center">
+          <SparkLogo size="lg" />
         </div>
         <h1 className="text-xl font-semibold">Create your account</h1>
         {invite ? (

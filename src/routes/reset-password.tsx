@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getMe } from "@/lib/auth.functions";
-import { Sparkles } from "lucide-react";
+import { SparkLogo } from "@/components/spark-logo";
 
 export const Route = createFileRoute("/reset-password")({
   head: () => ({ meta: [{ title: "Set new password — Spark" }] }),

@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Link } from "@tanstack/react-router";
-import { Sparkles, GraduationCap, Users, Cpu } from "lucide-react";
+import { GraduationCap, Users, Cpu } from "lucide-react";
+import { SparkLogo } from "@/components/spark-logo";
 import { redirect } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { getMe } from "@/lib/auth.functions";
@@ -39,12 +40,7 @@ function Index() {
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b border-border">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-2 font-semibold">
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-foreground">
-              <Sparkles className="h-4 w-4" />
-            </span>
-            Spark
-          </div>
+          <SparkLogo size="md" />
           <nav className="flex items-center gap-2">
             <Link to="/login" className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted">
               Sign in
