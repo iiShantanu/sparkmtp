@@ -437,10 +437,15 @@ function OverlayShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-2 sm:items-center sm:p-6" onClick={onClose}>
+    <div
+      className="fixed inset-x-0 top-0 z-50 flex items-end justify-center bg-black/60 p-2 sm:items-center sm:p-6"
+      style={{ bottom: "var(--osk-height, 0px)" }}
+      onClick={onClose}
+    >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[95vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
+        className="flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
+        style={{ maxHeight: "calc(95vh - var(--osk-height, 0px))" }}
       >
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <h2 className="text-base font-semibold">{title}</h2>
