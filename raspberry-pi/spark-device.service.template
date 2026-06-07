@@ -4,8 +4,8 @@ After=network.target bluetooth.target
 
 [Service]
 Type=simple
-User=pi
-Group=pi
+User=__SPARK_USER__
+Group=__SPARK_USER__
 ExecStart=/usr/bin/python3 /opt/spark/spark-device-service.py
 Restart=on-failure
 RestartSec=3

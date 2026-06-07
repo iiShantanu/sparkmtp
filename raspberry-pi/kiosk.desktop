@@ -1,5 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=Spark Kiosk
-Exec=/opt/spark/kiosk.sh
-X-GNOME-Autostart-enabled=true

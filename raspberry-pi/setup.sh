@@ -1,59 +1,263 @@
 #!/usr/bin/env bash
-# One-time installer for the Spark Raspberry Pi kiosk.
-# Run from the raspberry-pi/ folder on a fresh Raspberry Pi OS (Bookworm, desktop).
+# =============================================================================
+# Spark Raspberry Pi kiosk installer
+# Target: Raspberry Pi OS Bookworm (32-bit and 64-bit)
+# Result: Boot -> console autologin -> startx -> Chromium kiosk -> Spark
+# =============================================================================
+set -euo pipefail
 
-set -e
+SPARK_URL="https://sparkmtp.lovable.app/student"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-if [ "$(id -u)" -eq 0 ]; then
-  echo "Please run as the 'pi' user (not root). sudo will be invoked when needed." >&2
-  exit 1
+say()  { printf "\n\033[1;36m==>\033[0m %s\n" "$*"; }
+ok()   { printf "  \033[1;32m✓\033[0m %s\n" "$*"; }
+warn() { printf "  \033[1;33m!\033[0m %s\n" "$*"; }
+die()  { printf "\n\033[1;31m✗ %s\033[0m\n" "$*" >&2; exit 1; }
+
+# -----------------------------------------------------------------------------
+# 0. Sudo + user detection (never assume 'pi')
+# -----------------------------------------------------------------------------
+if [[ $EUID -ne 0 ]]; then
+  exec sudo -E bash "$0" "$@"
 fi
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SPARK_USER="${SUDO_USER:-${USER:-}}"
+if [[ -z "${SPARK_USER}" || "${SPARK_USER}" == "root" ]]; then
+  # Fallback: first regular user with UID >= 1000
+  SPARK_USER="$(getent passwd | awk -F: '$3>=1000 && $3<65534 {print $1; exit}')"
+fi
+[[ -n "${SPARK_USER}" ]] || die "Could not detect a non-root user. Run as a regular user with sudo."
+id "${SPARK_USER}" >/dev/null 2>&1 || die "User '${SPARK_USER}' does not exist."
+SPARK_HOME="$(getent passwd "${SPARK_USER}" | cut -d: -f6)"
+[[ -d "${SPARK_HOME}" ]] || die "Home directory for ${SPARK_USER} not found."
 
-echo "==> Installing packages (NetworkManager, Bluez, Chromium, Python helpers, unclutter)…"
-sudo apt update
-sudo apt install -y \
-  network-manager bluez bluez-tools \
-  chromium-browser unclutter \
-  python3 python3-pip python3-flask python3-flask-cors
+say "Installing Spark kiosk for user: ${SPARK_USER} (home: ${SPARK_HOME})"
 
-echo "==> Enabling NetworkManager and Bluetooth…"
-sudo systemctl enable --now NetworkManager
-sudo systemctl enable --now bluetooth
+export DEBIAN_FRONTEND=noninteractive
 
-echo "==> Adding pi user to netdev and bluetooth groups…"
-sudo usermod -aG netdev,bluetooth pi
+# -----------------------------------------------------------------------------
+# 1. SSH always on (remote recovery)
+# -----------------------------------------------------------------------------
+say "Ensuring SSH is enabled"
+apt-get update -y
+apt-get install -y openssh-server
+systemctl enable ssh
+systemctl start ssh
+ok "SSH enabled and running"
 
-echo "==> Installing helper service to /opt/spark/…"
-sudo mkdir -p /opt/spark
-sudo cp "$SCRIPT_DIR/spark-device-service.py" /opt/spark/
-sudo cp "$SCRIPT_DIR/kiosk.sh" /opt/spark/
-sudo chmod +x /opt/spark/spark-device-service.py /opt/spark/kiosk.sh
+# -----------------------------------------------------------------------------
+# 2. Base packages
+# -----------------------------------------------------------------------------
+say "Installing base packages (Chromium, X, Python, NetworkManager, Bluetooth)"
+apt-get install -y \
+  xserver-xorg xinit x11-xserver-utils \
+  chromium-browser chromium-codecs-ffmpeg-extra \
+  python3 python3-pip python3-flask python3-flask-cors \
+  network-manager bluez bluez-tools rfkill \
+  curl ca-certificates iproute2 unclutter
 
-echo "==> Installing systemd unit…"
-sudo cp "$SCRIPT_DIR/spark-device.service" /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now spark-device.service
+# Some Bookworm images ship 'chromium' instead of 'chromium-browser'
+if ! command -v chromium-browser >/dev/null 2>&1; then
+  if command -v chromium >/dev/null 2>&1; then
+    ln -sf "$(command -v chromium)" /usr/local/bin/chromium-browser
+  else
+    apt-get install -y chromium || die "Could not install Chromium."
+  fi
+fi
+ok "Base packages installed"
 
-echo "==> Installing kiosk autostart…"
-mkdir -p "$HOME/.config/autostart"
-cp "$SCRIPT_DIR/kiosk.desktop" "$HOME/.config/autostart/"
+# Ensure Flask is importable for system python (use apt packages; avoid PEP 668)
+python3 -c "import flask, flask_cors" 2>/dev/null || {
+  warn "python3-flask / python3-flask-cors missing; trying pip with --break-system-packages"
+  python3 -m pip install --break-system-packages --no-cache-dir flask flask-cors
+}
+ok "Flask available"
 
-echo "==> Configuring autologin for the pi user (raspi-config)…"
-sudo raspi-config nonint do_boot_behaviour B4 || true   # Desktop autologin
+# -----------------------------------------------------------------------------
+# 3. Permissions: Wi-Fi + Bluetooth
+# -----------------------------------------------------------------------------
+say "Granting Wi-Fi/Bluetooth permissions to ${SPARK_USER}"
+for grp in netdev bluetooth; do
+  if getent group "$grp" >/dev/null; then
+    usermod -aG "$grp" "${SPARK_USER}"
+    ok "Added ${SPARK_USER} to ${grp}"
+  else
+    warn "Group ${grp} not present on this system"
+  fi
+done
 
-cat <<EOF
+systemctl enable NetworkManager
+systemctl start NetworkManager
+systemctl enable bluetooth
+systemctl start bluetooth
+ok "NetworkManager + bluetooth enabled"
 
-==========================================================
-  Spark kiosk is installed.
+# -----------------------------------------------------------------------------
+# 4. Device helper service
+# -----------------------------------------------------------------------------
+say "Installing Spark device helper service to /opt/spark/"
+install -d -m 0755 /opt/spark
+install -m 0755 "${SCRIPT_DIR}/spark-device-service.py" /opt/spark/spark-device-service.py
+chown -R "${SPARK_USER}:${SPARK_USER}" /opt/spark
 
-  - Helper service: http://127.0.0.1:8765/health
-  - Kiosk URL:      \$SPARK_KIOSK_URL (defaults to published Lovable URL)
+sed "s/__SPARK_USER__/${SPARK_USER}/g" \
+  "${SCRIPT_DIR}/spark-device.service.template" \
+  > /etc/systemd/system/spark-device.service
+chmod 0644 /etc/systemd/system/spark-device.service
 
-  Reboot to start: sudo reboot
+systemctl daemon-reload
+systemctl enable spark-device
+systemctl restart spark-device
+ok "spark-device.service installed"
 
-  To change the URL, edit /opt/spark/kiosk.sh or set
-  SPARK_KIOSK_URL in /etc/environment.
-==========================================================
+# -----------------------------------------------------------------------------
+# 5. Service verification
+# -----------------------------------------------------------------------------
+say "Verifying device service"
+for i in {1..10}; do
+  if systemctl is-active --quiet spark-device; then break; fi
+  sleep 1
+done
+systemctl is-active --quiet spark-device \
+  || die "spark-device service failed to start. Inspect: journalctl -u spark-device -n 100 --no-pager"
+ok "spark-device active"
+
+for i in {1..10}; do
+  if curl -fsS --max-time 2 http://127.0.0.1:8765/ >/dev/null 2>&1 \
+     || curl -fsS --max-time 2 http://127.0.0.1:8765/health >/dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
+curl -fsS --max-time 2 http://127.0.0.1:8765/ >/dev/null 2>&1 \
+  || curl -fsS --max-time 2 http://127.0.0.1:8765/health >/dev/null 2>&1 \
+  || die "Device API not responding on http://127.0.0.1:8765"
+ok "Device API responding on :8765"
+
+ss -tulpn 2>/dev/null | grep -q ':8765' \
+  || die "Nothing listening on port 8765 according to ss"
+ok "Port 8765 listening"
+
+# nmcli sanity
+if sudo -u "${SPARK_USER}" nmcli -t -f RUNNING general >/dev/null 2>&1; then
+  ok "nmcli works for ${SPARK_USER}"
+else
+  warn "nmcli check failed for ${SPARK_USER}; group membership applies after next login"
+fi
+
+# -----------------------------------------------------------------------------
+# 6. Remove keyring / disable Chromium password prompts
+# -----------------------------------------------------------------------------
+say "Removing gnome-keyring and stale keyring data"
+apt-get purge -y gnome-keyring 2>/dev/null || true
+apt-get autoremove -y 2>/dev/null || true
+rm -rf "${SPARK_HOME}/.local/share/keyrings" || true
+ok "Keyring removed"
+
+# -----------------------------------------------------------------------------
+# 7. Console autologin on tty1 (no desktop)
+# -----------------------------------------------------------------------------
+say "Enabling console autologin on tty1 for ${SPARK_USER}"
+# Make sure no graphical desktop autologin is competing
+if command -v raspi-config >/dev/null 2>&1; then
+  raspi-config nonint do_boot_behaviour B2 || true   # B2 = Console Autologin
+fi
+systemctl set-default multi-user.target
+
+install -d -m 0755 /etc/systemd/system/getty@tty1.service.d
+cat > /etc/systemd/system/getty@tty1.service.d/autologin.conf <<EOF
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin ${SPARK_USER} --noclear %I \$TERM
 EOF
+systemctl daemon-reload
+ok "tty1 autologin configured"
+
+# -----------------------------------------------------------------------------
+# 8. ~/.xinitrc and ~/.bash_profile for kiosk
+# -----------------------------------------------------------------------------
+say "Writing ${SPARK_HOME}/.xinitrc and ${SPARK_HOME}/.bash_profile"
+
+cat > "${SPARK_HOME}/.xinitrc" <<EOF
+#!/bin/sh
+# Spark kiosk X session — do not edit by hand, regenerated by setup.sh
+
+xset s off
+xset -dpms
+xset s noblank
+
+# Hide mouse cursor when idle (optional, harmless if unclutter missing)
+command -v unclutter >/dev/null 2>&1 && unclutter -idle 1 -root &
+
+# Pick whichever chromium binary exists
+CHROMIUM_BIN="\$(command -v chromium-browser || command -v chromium)"
+
+exec "\$CHROMIUM_BIN" \\
+  --password-store=basic \\
+  --kiosk \\
+  --start-fullscreen \\
+  --disable-session-crashed-bubble \\
+  --disable-infobars \\
+  --noerrdialogs \\
+  ${SPARK_URL}
+EOF
+chmod 0755 "${SPARK_HOME}/.xinitrc"
+chown "${SPARK_USER}:${SPARK_USER}" "${SPARK_HOME}/.xinitrc"
+
+# Append (idempotent) a guarded startx block to .bash_profile
+BP="${SPARK_HOME}/.bash_profile"
+touch "$BP"
+if ! grep -q "# >>> spark-kiosk >>>" "$BP"; then
+  cat >> "$BP" <<'EOF'
+
+# >>> spark-kiosk >>>
+# Auto-start Chromium kiosk on tty1 unless recovery mode is requested.
+# Set SPARK_DISABLE_KIOSK=1 (e.g. in /etc/environment or via SSH) to skip.
+if [ -z "$DISPLAY" ] && [ "$(tty)" = "/dev/tty1" ] && [ "${SPARK_DISABLE_KIOSK:-0}" != "1" ]; then
+    startx
+fi
+# <<< spark-kiosk <<<
+EOF
+fi
+chown "${SPARK_USER}:${SPARK_USER}" "$BP"
+ok "Kiosk auto-start wired (recovery: export SPARK_DISABLE_KIOSK=1)"
+
+# -----------------------------------------------------------------------------
+# 9. Final summary
+# -----------------------------------------------------------------------------
+IP_ADDR="$(hostname -I 2>/dev/null | awk '{print $1}')"
+[[ -n "$IP_ADDR" ]] || IP_ADDR="(not connected)"
+
+ssh_status="$(systemctl is-active ssh || true)"
+dev_status="$(systemctl is-active spark-device || true)"
+bt_status="$(systemctl is-active bluetooth || true)"
+nm_status="$(systemctl is-active NetworkManager || true)"
+api_status="down"
+if curl -fsS --max-time 2 http://127.0.0.1:8765/ >/dev/null 2>&1 \
+   || curl -fsS --max-time 2 http://127.0.0.1:8765/health >/dev/null 2>&1; then
+  api_status="up (http://127.0.0.1:8765)"
+fi
+
+cat <<SUMMARY
+
+============================================================
+  Spark kiosk installation complete
+============================================================
+  Username:               ${SPARK_USER}
+  IP Address:             ${IP_ADDR}
+  Spark URL:              ${SPARK_URL}
+  SSH Status:             ${ssh_status}
+  Device Service Status:  ${dev_status}
+  API Status:             ${api_status}
+  Bluetooth Status:       ${bt_status}
+  NetworkManager Status:  ${nm_status}
+============================================================
+
+Reboot now to enter kiosk mode:
+
+    sudo reboot
+
+SSH back in any time as: ${SPARK_USER}@${IP_ADDR}
+Recovery (skip kiosk): create /etc/profile.d/spark-recovery.sh
+with:  export SPARK_DISABLE_KIOSK=1
+SUMMARY
