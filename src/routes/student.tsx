@@ -18,7 +18,6 @@ import {
   Send,
   Sparkles,
   Timer,
-  Type,
   Wifi,
   X,
 } from "lucide-react";
