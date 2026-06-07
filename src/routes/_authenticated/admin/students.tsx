@@ -11,8 +11,8 @@ import {
   adminListClasses,
 } from "@/lib/admin.functions";
 
-const studentsQO = queryOptions({ queryKey: ["admin", "students"], queryFn: () => adminListStudents() });
-const classesQO = queryOptions({ queryKey: ["admin", "classes"], queryFn: () => adminListClasses() });
+export const studentsQO = queryOptions({ queryKey: ["admin", "students"], queryFn: () => adminListStudents() });
+export const classesQO = queryOptions({ queryKey: ["admin", "classes"], queryFn: () => adminListClasses() });
 
 export const Route = createFileRoute("/_authenticated/admin/students")({
   loader: ({ context }) =>

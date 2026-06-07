@@ -6,7 +6,7 @@ import { Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/app-shell";
 import { adminListClasses, adminCreateClass, adminDeleteClass } from "@/lib/admin.functions";
 
-const classesQO = queryOptions({ queryKey: ["admin", "classes"], queryFn: () => adminListClasses() });
+export const classesQO = queryOptions({ queryKey: ["admin", "classes"], queryFn: () => adminListClasses() });
 
 export const Route = createFileRoute("/_authenticated/admin/classes")({
   loader: ({ context }) => context.queryClient.ensureQueryData(classesQO),

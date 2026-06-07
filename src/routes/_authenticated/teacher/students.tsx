@@ -4,8 +4,8 @@ import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
 import { PageHeader } from "@/components/app-shell";
 import { listClasses, listStudents } from "@/lib/teacher.functions";
 
-const classesQO = queryOptions({ queryKey: ["teacher", "classes"], queryFn: () => listClasses() });
-const studentsQO = queryOptions({ queryKey: ["teacher", "students"], queryFn: () => listStudents() });
+export const classesQO = queryOptions({ queryKey: ["teacher", "classes"], queryFn: () => listClasses() });
+export const studentsQO = queryOptions({ queryKey: ["teacher", "students"], queryFn: () => listStudents() });
 
 export const Route = createFileRoute("/_authenticated/teacher/students")({
   loader: ({ context }) =>

@@ -13,10 +13,10 @@ import {
   adminListClasses,
 } from "@/lib/admin.functions";
 
-const usersQO = queryOptions({ queryKey: ["admin", "users"], queryFn: () => adminListUsers() });
-const subjectsQO = queryOptions({ queryKey: ["admin", "subjects"], queryFn: () => listSubjects() });
-const classesQO = queryOptions({ queryKey: ["admin", "classes"], queryFn: () => adminListClasses() });
-const assignmentsQO = queryOptions({
+export const usersQO = queryOptions({ queryKey: ["admin", "users"], queryFn: () => adminListUsers() });
+export const subjectsQO = queryOptions({ queryKey: ["admin", "subjects"], queryFn: () => listSubjects() });
+export const classesQO = queryOptions({ queryKey: ["admin", "classes"], queryFn: () => adminListClasses() });
+export const assignmentsQO = queryOptions({
   queryKey: ["admin", "teacherAssignments"],
   queryFn: () => adminListTeacherAssignments(),
 });
