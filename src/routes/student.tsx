@@ -665,6 +665,8 @@ function ToolsPanel({
   openBluetooth,
   openNotices,
   openHomework,
+  openNotes,
+  openTodo,
 }: {
   online: boolean;
   homework: Homework[];
@@ -676,43 +678,47 @@ function ToolsPanel({
   openBluetooth: () => void;
   openNotices: () => void;
   openHomework: (h: Homework) => void;
+  openNotes: () => void;
+  openTodo: () => void;
 }) {
   return (
-    <div className="mx-auto w-full max-w-md space-y-5 px-3 pt-3 pb-16">
+    <div className="mx-auto w-full max-w-2xl space-y-6 px-4 pt-4 pb-20">
       <div>
-        <h2 className="px-1 text-xl font-bold">Tools</h2>
-        <div className="mt-3 grid grid-cols-3 gap-2.5">
-          <ToolTile icon={<Brain className="h-7 w-7" />} label="Quiz" onClick={openQuiz} disabled={!online} />
-          <ToolTile icon={<MessageSquare className="h-7 w-7" />} label="Messages" onClick={openMessages} disabled={!online} />
-          <ToolTile icon={<MusicIcon className="h-7 w-7" />} label="Music" onClick={openMusic} />
-          <ToolTile icon={<Timer className="h-7 w-7" />} label="Pomodoro" onClick={openPomodoro} />
-          <ToolTile icon={<Wifi className="h-7 w-7" />} label="Wi-Fi" onClick={openWifi} />
-          <ToolTile icon={<Bluetooth className="h-7 w-7" />} label="Bluetooth" onClick={openBluetooth} />
+        <h2 className="px-1 text-2xl font-bold">Tools</h2>
+        <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <ToolTile icon={<Brain className="h-12 w-12" />} label="Quiz" onClick={openQuiz} disabled={!online} />
+          <ToolTile icon={<MessageSquare className="h-12 w-12" />} label="Messages" onClick={openMessages} disabled={!online} />
+          <ToolTile icon={<NotebookPen className="h-12 w-12" />} label="Notes" onClick={openNotes} />
+          <ToolTile icon={<ListChecks className="h-12 w-12" />} label="To-Do" onClick={openTodo} />
+          <ToolTile icon={<MusicIcon className="h-12 w-12" />} label="Music" onClick={openMusic} />
+          <ToolTile icon={<Timer className="h-12 w-12" />} label="Pomodoro" onClick={openPomodoro} />
+          <ToolTile icon={<Wifi className="h-12 w-12" />} label="Wi-Fi" onClick={openWifi} />
+          <ToolTile icon={<Bluetooth className="h-12 w-12" />} label="Bluetooth" onClick={openBluetooth} />
         </div>
       </div>
 
       <div>
-        <h2 className="px-1 text-xl font-bold">Homework</h2>
+        <h2 className="px-1 text-2xl font-bold">Homework</h2>
         {homework.length === 0 ? (
-          <p className="mt-3 rounded-xl border border-dashed border-border p-5 text-center text-base text-muted-foreground">
+          <p className="mt-4 rounded-2xl border border-dashed border-border p-6 text-center text-lg text-muted-foreground">
             Nothing for today 🎉
           </p>
         ) : (
-          <ul className="mt-3 space-y-2">
+          <ul className="mt-4 space-y-3">
             {homework.map((h) => (
               <li key={h.id}>
                 <button
                   onClick={() => openHomework(h)}
-                  className="w-full rounded-xl border border-border bg-card p-4 text-left transition active:scale-[0.98] hover:border-primary"
+                  className="w-full rounded-2xl border border-border bg-card p-5 text-left transition active:scale-[0.98] hover:border-primary"
                 >
                   {h.subject && (
-                    <div className="text-sm font-semibold uppercase tracking-wide text-primary">
+                    <div className="text-base font-semibold uppercase tracking-wide text-primary">
                       {h.subject}
                     </div>
                   )}
-                  <div className="mt-0.5 text-base font-semibold leading-tight">{h.title}</div>
+                  <div className="mt-1 text-lg font-semibold leading-tight">{h.title}</div>
                   {h.due_at && (
-                    <div className="mt-1.5 text-sm text-muted-foreground">
+                    <div className="mt-2 text-base text-muted-foreground">
                       Due {new Date(h.due_at).toLocaleDateString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}
                     </div>
                   )}
