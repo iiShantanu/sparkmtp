@@ -3,10 +3,10 @@ import sparkLogoAsset from "@/assets/spark-logo.png.asset.json";
 type Size = "sm" | "md" | "lg" | "xl";
 
 const HEIGHT: Record<Size, string> = {
-  sm: "h-7",
-  md: "h-10",
-  lg: "h-14",
-  xl: "h-20",
+  sm: "h-10",
+  md: "h-14",
+  lg: "h-20",
+  xl: "h-28",
 };
 
 export function SparkLogo({
@@ -24,6 +24,10 @@ export function SparkLogo({
       alt={alt}
       className={`${HEIGHT[size]} w-auto select-none ${className}`}
       draggable={false}
+      width={1024}
+      height={512}
+      loading="eager"
+      decoding="async"
     />
   );
 }

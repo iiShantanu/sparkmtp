@@ -1,6 +1,3 @@
-import { DotLottieReact } from "@lottiefiles/dotlottie-react";
-import { useEffect, useState } from "react";
-
 export type SparkEmotion =
   | "idle"
   | "listening"
@@ -12,20 +9,6 @@ export type SparkEmotion =
   | "angry"
   | "forgot"
   | "error";
-
-// Curated free LottieFiles animations (publicly hosted).
-const SRC: Record<SparkEmotion, string> = {
-  idle: "https://lottie.host/4f3b1a0e-6a59-4f8b-9a4f-2a4f6c5b1a01/idle.lottie",
-  listening: "https://assets10.lottiefiles.com/packages/lf20_usmfx6bp.json",
-  thinking: "https://assets3.lottiefiles.com/packages/lf20_a2chheio.json",
-  speaking: "https://assets1.lottiefiles.com/packages/lf20_t9gkkhz4.json",
-  happy: "https://assets5.lottiefiles.com/packages/lf20_touohxv0.json",
-  friendly: "https://assets9.lottiefiles.com/packages/lf20_jbrw3hcz.json",
-  love: "https://assets7.lottiefiles.com/packages/lf20_kkflmoub.json",
-  angry: "https://assets4.lottiefiles.com/packages/lf20_qjosmr4w.json",
-  forgot: "https://assets8.lottiefiles.com/packages/lf20_ydo1amjm.json",
-  error: "https://assets6.lottiefiles.com/packages/lf20_qpwbqki6.json",
-};
 
 const COLORS: Record<SparkEmotion, string> = {
   idle: "hsl(var(--primary) / 0.6)",
@@ -62,13 +45,6 @@ export function SparkAvatar({
   size?: number;
   showLabel?: boolean;
 }) {
-  const [failed, setFailed] = useState(false);
-
-  // Reset failure when emotion changes, so we re-try the Lottie source.
-  useEffect(() => {
-    setFailed(false);
-  }, [emotion]);
-
   const color = COLORS[emotion];
 
   return (
@@ -100,17 +76,7 @@ export function SparkAvatar({
             background: `linear-gradient(135deg, ${color}, ${color}88)`,
           }}
         >
-          {!failed ? (
-            <DotLottieReact
-              src={SRC[emotion]}
-              autoplay
-              loop
-              style={{ width: "100%", height: "100%" }}
-              onError={() => setFailed(true)}
-            />
-          ) : (
-            <FallbackFace emotion={emotion} />
-          )}
+          <FallbackFace emotion={emotion} />
         </div>
       </div>
       {showLabel && (
