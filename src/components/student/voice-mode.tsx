@@ -178,13 +178,13 @@ function VoiceModeInner({
           : "Tap Talk to Spark to start a live conversation.";
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="flex h-full min-h-0 w-full flex-col gap-3">
       {homeworkBar}
-      <div className="grid place-items-center rounded-2xl border border-border bg-background p-6 text-center">
-        <SparkAvatar emotion={liveEmotion} size={180} />
-        <div className="mt-4 text-lg font-semibold">{statusText}</div>
-        {warning && <p className="mt-3 max-w-md text-sm text-amber-600">{warning}</p>}
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+      <div className="flex flex-col items-center justify-center text-center">
+        <SparkAvatar emotion={liveEmotion} size={200} />
+        <div className="mt-3 text-base font-semibold">{statusText}</div>
+        {warning && <p className="mt-2 max-w-md text-sm text-amber-600">{warning}</p>}
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-3">
           {connected ? (
             <>
               <button
@@ -228,7 +228,7 @@ function VoiceModeInner({
         </div>
       </div>
       {transcript.length > 0 && (
-        <div className="max-h-64 space-y-2 overflow-y-auto rounded-xl border border-border bg-background p-3 text-sm">
+        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto rounded-xl border border-border bg-background p-3 text-sm">
           {transcript.map((m, i) => (
             <div key={i}>
               <span className="font-semibold capitalize">{m.role}:</span> {m.text}
