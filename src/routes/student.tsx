@@ -563,8 +563,14 @@ function SparkPanel({
   openChat: () => void;
 }) {
   const [voiceActive, setVoiceActive] = useState(false);
+  const [offlineWarn, setOfflineWarn] = useState(false);
 
   const startVoice = useCallback(async () => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setOfflineWarn(true);
+      return;
+    }
+    setOfflineWarn(false);
     try {
       if (typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -598,13 +604,14 @@ function SparkPanel({
             <SparkAvatar emotion="friendly" size={200} showLabel={false} />
             <button
               onClick={startVoice}
-              disabled={!online}
-              className="inline-flex items-center gap-3 rounded-full bg-primary px-8 py-5 text-2xl font-bold text-primary-foreground shadow-lg shadow-primary/30 transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center gap-3 rounded-full bg-primary px-8 py-5 text-2xl font-bold text-primary-foreground shadow-lg shadow-primary/30 transition active:scale-95"
             >
               <Mic className="h-7 w-7" /> Talk to Spark
             </button>
-            {!online && (
-              <p className="text-base font-medium text-amber-600">Connect to Wi-Fi</p>
+            {(offlineWarn || !online) && (
+              <div className="mx-2 max-w-sm rounded-xl border border-amber-500/50 bg-amber-50 px-4 py-3 text-center text-base font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                Please connect to the internet to talk to Spark.
+              </div>
             )}
           </div>
         ) : (
