@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Loader2, Mic, MicOff, Send, X } from "lucide-react";
+import { Loader2, Mic, MicOff, X } from "lucide-react";
 import { ConversationProvider, useConversation } from "@elevenlabs/react";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -34,7 +34,6 @@ function VoiceModeInner({
   const summarize = useServerFn(summarizeVoiceSession);
   const [warning, setWarning] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
-  const [textInput, setTextInput] = useState("");
   const [transcript, setTranscript] = useState<Array<{ role: string; text: string }>>([]);
   const transcriptRef = useRef<Array<{ role: string; text: string }>>([]);
   const startedRef = useRef(false);
