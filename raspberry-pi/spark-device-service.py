@@ -62,6 +62,29 @@ def health() -> Any:
     return jsonify(ok=True, version="1.0.0")
 
 
+# ---------- network debug ----------
+@app.get("/network/status")
+def network_status() -> Any:
+    _, ips_out, _ = run(["hostname", "-I"])
+    ips = ips_out.strip().split()
+    _, host_out, _ = run(["hostname"])
+    _, route_out, _ = run(["ip", "route"])
+    gateway = None
+    for line in route_out.splitlines():
+        if line.startswith("default"):
+            parts = line.split()
+            if len(parts) >= 3:
+                gateway = parts[2]
+            break
+    _, ssid_out, _ = run(["iwgetid", "-r"])
+    return jsonify(
+        hostname=host_out.strip() or None,
+        ips=ips,
+        gateway=gateway,
+        ssid=ssid_out.strip() or None,
+    )
+
+
 # ---------- Wi-Fi ----------
 @app.get("/wifi/status")
 def wifi_status() -> Any:
