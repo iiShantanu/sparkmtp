@@ -2,10 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { Loader2, Mic, MicOff, X } from "lucide-react";
 import { ConversationProvider, useConversation } from "@elevenlabs/react";
 import { useServerFn } from "@tanstack/react-start";
-import {
-  startVoiceConversation,
-  summarizeVoiceSession,
-} from "@/lib/student-runtime.functions";
+import { startVoiceConversation, summarizeVoiceSession } from "@/lib/student-runtime.functions";
 import { SparkAvatar, type SparkEmotion } from "@/components/spark-avatar";
 
 export type VoiceModeProps = {
@@ -24,12 +21,7 @@ export default function VoiceMode(props: VoiceModeProps) {
   );
 }
 
-function VoiceModeInner({
-  token,
-  autoStart,
-  activeHomeworkId,
-  homeworkBar,
-}: VoiceModeProps) {
+function VoiceModeInner({ token, autoStart, activeHomeworkId, homeworkBar }: VoiceModeProps) {
   const startVoice = useServerFn(startVoiceConversation);
   const summarize = useServerFn(summarizeVoiceSession);
   const [warning, setWarning] = useState<string | null>(null);
