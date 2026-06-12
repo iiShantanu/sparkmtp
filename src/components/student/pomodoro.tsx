@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Pause, Play, RotateCcw } from "lucide-react";
+import { Maximize2, Pause, Play, RotateCcw, X } from "lucide-react";
 import { logStudySession } from "@/lib/student-extras.functions";
 import { sparkBus } from "@/lib/spark-controls";
 
@@ -21,6 +21,7 @@ type PersistedState = {
   customMin: number;
   sessionKind: string;
   plannedSeconds: number;
+  pausedRemaining?: number | null; // seconds left when paused
 };
 
 function loadPersisted(): Partial<PersistedState> {
@@ -105,6 +106,9 @@ export function Pomodoro({ onClose, token }: { onClose: () => void; token?: stri
     if (persisted.endsAt && persisted.endsAt > Date.now()) {
       setRemaining(Math.round((persisted.endsAt - Date.now()) / 1000));
       setRunning(true);
+    } else if (persisted.pausedRemaining && persisted.pausedRemaining > 0) {
+      setRemaining(persisted.pausedRemaining);
+      setRunning(false);
     } else if (persisted.elapsedAt && persisted.mode === "stopwatch") {
       setElapsed(Math.round((Date.now() - persisted.elapsedAt) / 1000));
       setRunning(true);
@@ -177,13 +181,13 @@ export function Pomodoro({ onClose, token }: { onClose: () => void; token?: stri
   function toggle() {
     if (running) {
       setRunning(false);
-      persist({ endsAt: null, elapsedAt: null });
+      persist({ endsAt: null, elapsedAt: null, pausedRemaining: mode === "stopwatch" ? null : remaining });
     } else {
       setRunning(true);
       if (mode === "stopwatch") {
         persist({ elapsedAt: Date.now() - elapsed * 1000 });
       } else {
-        persist({ endsAt: Date.now() + remaining * 1000 });
+        persist({ endsAt: Date.now() + remaining * 1000, pausedRemaining: null });
       }
     }
   }
