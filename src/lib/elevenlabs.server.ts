@@ -39,7 +39,7 @@ export async function ensureAgentOverridesEnabled(agentId: string): Promise<bool
       headers: { "xi-api-key": key(), "Content-Type": "application/json" },
       body: JSON.stringify({
         platform_settings: {
-          conversation_initiation_client_data: {
+          overrides: {
             conversation_config_override: {
               agent: {
                 prompt: { prompt: true },
