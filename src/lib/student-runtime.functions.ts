@@ -303,8 +303,9 @@ export const startVoiceConversation = createServerFn({ method: "POST" })
     const [token, overridesOk] = await Promise.all([
       getConversationToken(agentId),
       ensureAgentOverridesEnabled(agentId),
-      ensureAgentToolsProvisioned(agentId),
     ]);
+    // Provision client tools in parallel but don't block voice start if it fails.
+    ensureAgentToolsProvisioned(agentId).catch(() => {});
     let systemPrompt: string | null = overridesOk ? buildTutorSystemPrompt(ctx) : null;
     let firstMessage: string | null = overridesOk ? buildFirstMessage(ctx) : null;
     if (overridesOk && homework) {
