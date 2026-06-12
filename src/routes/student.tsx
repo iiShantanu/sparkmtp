@@ -6,6 +6,7 @@ import {
   Bluetooth,
   BookOpen,
   Brain,
+  Bug,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
