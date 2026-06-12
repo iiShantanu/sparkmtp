@@ -120,9 +120,13 @@ function buildSystemPrompt(
   cfg: AiCfg,
   extras?: { homework_title?: string; instructions?: string | null },
 ) {
+  const isHinglish = cfg.language.trim().toLowerCase() === "hinglish";
+  const langLine = isHinglish
+    ? "Reply in Hinglish — a natural mix of Hindi and English written in Roman (Latin) script, the way Indian students chat. Keep technical/subject terms in English."
+    : `Reply in ${cfg.language}.`;
   const lines = [
     cfg.custom_prompt,
-    `Mode: ${cfg.mode}. Style: ${cfg.teaching_style}. Tone: ${cfg.tone}. Complexity: ${cfg.complexity}. Reply in ${cfg.language}.`,
+    `Mode: ${cfg.mode}. Style: ${cfg.teaching_style}. Tone: ${cfg.tone}. Complexity: ${cfg.complexity}. ${langLine}`,
   ];
   if (extras?.homework_title) lines.push(`Current homework: ${extras.homework_title}.`);
   if (extras?.instructions) lines.push(`Teacher's instructions: ${extras.instructions}`);
