@@ -106,9 +106,9 @@ function VoiceModeInner({ token, autoStart, activeHomeworkId, homeworkBar }: Voi
 
     // Notes
     add_note: ({ text }: { text: string }) => {
-      if (!text?.trim()) return "I need note text.";
-      notesStore.add(text);
       sparkBus.emit({ kind: "panel:open", name: "notes" });
+      if (!text?.trim()) return "Notes are open — what should I write?";
+      notesStore.add(text);
       return "Saved.";
     },
     list_notes: ({ limit }: { limit?: number } = {}) => {
@@ -126,9 +126,9 @@ function VoiceModeInner({ token, autoStart, activeHomeworkId, homeworkBar }: Voi
 
     // Todos
     add_todo: ({ text }: { text: string }) => {
-      if (!text?.trim()) return "I need a task.";
-      todosStore.add(text);
       sparkBus.emit({ kind: "panel:open", name: "todo" });
+      if (!text?.trim()) return "To-do list is open — what's the task?";
+      todosStore.add(text);
       return "Added.";
     },
     list_todos: ({ filter }: { filter?: "all" | "open" | "done" } = {}) => {
