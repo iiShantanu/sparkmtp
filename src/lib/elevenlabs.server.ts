@@ -80,7 +80,6 @@ export async function tts(text: string, voiceId: string): Promise<string> {
   return Buffer.from(buf).toString("base64");
 }
 
-
 export async function sttBase64(audioBase64: string, mime = "audio/webm"): Promise<string> {
   const bytes = Buffer.from(audioBase64, "base64");
   const blob = new Blob([bytes], { type: mime });
