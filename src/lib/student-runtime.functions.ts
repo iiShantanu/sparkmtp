@@ -37,6 +37,35 @@ const BUILT_IN: AiCfg = {
   teaching_style: "socratic",
 };
 
+const ELEVENLABS_LANGUAGE_CODES: Record<string, string> = {
+  english: "en",
+  en: "en",
+  hindi: "hi",
+  hi: "hi",
+  hinglish: "hi",
+  spanish: "es",
+  es: "es",
+  french: "fr",
+  fr: "fr",
+  german: "de",
+  de: "de",
+  italian: "it",
+  it: "it",
+  portuguese: "pt",
+  pt: "pt",
+  japanese: "ja",
+  ja: "ja",
+  korean: "ko",
+  ko: "ko",
+  chinese: "zh",
+  zh: "zh",
+};
+
+function elevenLabsLanguageCode(language: string): string | null {
+  const normalized = language.trim().toLowerCase();
+  return ELEVENLABS_LANGUAGE_CODES[normalized] ?? null;
+}
+
 async function resolveConfigFor(
   student_id: string,
   subject_id: string | null,
@@ -293,7 +322,7 @@ export const startVoiceConversation = createServerFn({ method: "POST" })
       token,
       systemPrompt,
       firstMessage,
-      language: overridesOk ? cfg.language : null,
+      language: overridesOk ? elevenLabsLanguageCode(cfg.language) : null,
       overridesEnabled: overridesOk,
       warning: null,
       homework: homework
