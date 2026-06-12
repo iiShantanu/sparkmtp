@@ -32,7 +32,7 @@ const BUILT_IN: AiCfg = {
     "You are Spark, a kind classroom AI tutor. Encourage the student, explain step by step, and never give the final answer outright — guide them to discover it.",
   mode: "guided",
   complexity: "grade_level",
-  language: "English",
+  language: "Hinglish",
   tone: "encouraging",
   teaching_style: "socratic",
 };
