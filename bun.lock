@@ -5,7 +5,7 @@
     "": {
       "name": "tanstack_start_ts",
       "dependencies": {
-        "@elevenlabs/react": "^1.6.4",
+        "@elevenlabs/react": "1.6.5",
         "@hookform/resolvers": "^5.2.2",
         "@lottiefiles/dotlottie-react": "^0.19.4",
         "@radix-ui/react-accordion": "^1.2.12",
@@ -284,9 +284,9 @@
 
     "@date-fns/tz": ["@date-fns/tz@1.4.1", "", {}, "sha512-P5LUNhtbj6YfI3iJjw5EL9eUAG6OitD0W3fWQcpQjDRc/QIsL0tRNuO1PcDvPccWL1fSTXXdE1ds+l95DV/OFA=="],
 
-    "@elevenlabs/client": ["@elevenlabs/client@1.9.0", "https://europe-west4-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@elevenlabs/client/-/client-1.9.0.tgz", { "dependencies": { "@elevenlabs/types": "0.14.0", "livekit-client": "2.16.1" } }, "sha512-czkbwUv7n18DoH5L9YdAKr0ATlcPSYNxhVQTfnFvAUdijvWfhwn8Ct0WHbPxX1oGwH6s1hMbPPAK+CUURHyowg=="],
+    "@elevenlabs/client": ["@elevenlabs/client@1.10.0", "https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@elevenlabs/client/-/client-1.10.0.tgz", { "dependencies": { "@elevenlabs/types": "0.14.0", "livekit-client": "2.16.1" } }, "sha512-a8OIuULCwpodN//aIV5G/eS9r0AFTJmrrt2a1G0rnRkxs0Kh9lha00lGLfURsYec7litrBerEznQvkMuKw3fGA=="],
 
-    "@elevenlabs/react": ["@elevenlabs/react@1.6.4", "https://europe-west4-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@elevenlabs/react/-/react-1.6.4.tgz", { "dependencies": { "@elevenlabs/client": "1.9.0" }, "peerDependencies": { "react": ">=16.8.0" } }, "sha512-+5pF0BfLOShv0IJtGQWGLjG0kVYlfxRqpQlKmWPc8T8NzEzFX8hTCr+fjPNldAGEQSUsTGFiOvVNJHzpfQe4Sw=="],
+    "@elevenlabs/react": ["@elevenlabs/react@1.6.5", "https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@elevenlabs/react/-/react-1.6.5.tgz", { "dependencies": { "@elevenlabs/client": "1.10.0" }, "peerDependencies": { "react": ">=16.8.0" } }, "sha512-aOrrWz9ng89Wpzj017UAXTrwuwP+Q54dvx1/QTuCva/HDeObMV5O6Y/FMzs5ZNdR0AJ+ta84sM4FJJNi5glyAQ=="],
 
     "@elevenlabs/types": ["@elevenlabs/types@0.14.0", "https://europe-west4-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@elevenlabs/types/-/types-0.14.0.tgz", {}, "sha512-CfpxFyNtTq9Iwm1/Hfxk+FK0QlFgsHpXcNM9jMPYrjP/kAYMFi9rgFoosdJcBGYbgkvzUL7hwT9I6WzHyNyxDg=="],
 
