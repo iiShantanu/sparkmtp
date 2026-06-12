@@ -140,6 +140,135 @@ export const sendStudentMessage = createServerFn({ method: "POST" })
     return inserted;
   });
 
+function bestTeacherMatch(
+  query: string,
+  teachers: Array<{
+    teacher_id: string;
+    subject: string | null;
+    full_name: string | null;
+  }>,
+) {
+  const q = query.trim().toLowerCase();
+  if (!q) return null;
+  // Score: exact subject match > subject contains > name contains > any contains
+  let best: { score: number; t: (typeof teachers)[number] } | null = null;
+  for (const t of teachers) {
+    const name = (t.full_name || "").toLowerCase();
+    const subj = (t.subject || "").toLowerCase();
+    let score = 0;
+    if (subj && subj === q) score = 100;
+    else if (subj && subj.includes(q)) score = 80;
+    else if (subj && q.includes(subj)) score = 70;
+    else if (name && name.includes(q)) score = 60;
+    else if (name && q.includes(name.split(" ")[0])) score = 50;
+    else if (
+      // try last name
+      name &&
+      q.split(/\s+/).some((w) => name.split(/\s+/).includes(w))
+    )
+      score = 40;
+    if (score > 0 && (!best || score > best.score)) best = { score, t };
+  }
+  return best?.t ?? null;
+}
+
+export const voiceFindAndSendMessage = createServerFn({ method: "POST" })
+  .inputValidator((i) =>
+    z
+      .object({
+        device_token: z.string().min(10),
+        teacher_query: z.string().min(1).max(200),
+        body: z.string().min(1).max(4000),
+      })
+      .parse(i),
+  )
+  .handler(async ({ data }) => {
+    const { student_id } = await requireDevice(data.device_token);
+    const teachers = await teachersForStudent(student_id);
+    if (teachers.length === 0) {
+      return { ok: false, error: "You don't have any teachers assigned yet." };
+    }
+    const profiles = await profileMap(teachers.map((t) => t.teacher_id));
+    const enriched = teachers.map((t) => ({
+      teacher_id: t.teacher_id,
+      subject: t.subject,
+      full_name: profiles.get(t.teacher_id)?.full_name ?? null,
+    }));
+    const match = bestTeacherMatch(data.teacher_query, enriched);
+    if (!match) {
+      const opts = enriched
+        .map((t) => `${t.full_name || "Teacher"}${t.subject ? ` (${t.subject})` : ""}`)
+        .join(", ");
+      return {
+        ok: false,
+        error: `I couldn't find a teacher matching "${data.teacher_query}". Your teachers are: ${opts}.`,
+      };
+    }
+    const { error } = await supabaseAdmin.from("student_messages").insert({
+      student_id,
+      teacher_id: match.teacher_id,
+      sender_role: "student",
+      body: data.body.trim(),
+    });
+    if (error) return { ok: false, error: error.message };
+    const label = match.full_name
+      ? match.full_name + (match.subject ? ` (${match.subject})` : "")
+      : match.subject || "your teacher";
+    return { ok: true, to: label };
+  });
+
+export const voiceListRecentMessages = createServerFn({ method: "POST" })
+  .inputValidator((i) =>
+    z
+      .object({
+        device_token: z.string().min(10),
+        teacher_query: z.string().min(1).max(200).optional(),
+        limit: z.number().int().min(1).max(10).optional(),
+      })
+      .parse(i),
+  )
+  .handler(async ({ data }) => {
+    const { student_id } = await requireDevice(data.device_token);
+    const teachers = await teachersForStudent(student_id);
+    if (teachers.length === 0) {
+      return { ok: false, error: "You don't have any teachers assigned yet." };
+    }
+    const profiles = await profileMap(teachers.map((t) => t.teacher_id));
+    const limit = data.limit ?? 3;
+    let teacherIds = teachers.map((t) => t.teacher_id);
+    if (data.teacher_query) {
+      const enriched = teachers.map((t) => ({
+        teacher_id: t.teacher_id,
+        subject: t.subject,
+        full_name: profiles.get(t.teacher_id)?.full_name ?? null,
+      }));
+      const match = bestTeacherMatch(data.teacher_query, enriched);
+      if (!match) {
+        return {
+          ok: false,
+          error: `No teacher matching "${data.teacher_query}".`,
+        };
+      }
+      teacherIds = [match.teacher_id];
+    }
+    const { data: rows } = await supabaseAdmin
+      .from("student_messages")
+      .select("teacher_id, sender_role, body, created_at")
+      .eq("student_id", student_id)
+      .in("teacher_id", teacherIds)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    const items = (rows ?? []).map((r: any) => ({
+      from:
+        r.sender_role === "teacher"
+          ? profiles.get(r.teacher_id)?.full_name ?? "Teacher"
+          : "You",
+      body: r.body,
+      at: r.created_at,
+    }));
+    return { ok: true, items };
+  });
+
 // ----- Teacher (auth) paths -----
 
 export const listTeacherInbox = createServerFn({ method: "POST" })
