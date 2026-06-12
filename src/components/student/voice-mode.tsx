@@ -78,7 +78,11 @@ function VoiceModeInner({ token, autoStart, activeHomeworkId, homeworkBar }: Voi
         });
         if (!res.ok) return res.error || "Could not send.";
         if (res.teacher_id && res.message) {
-          sparkBus.emit({ kind: "message:sent", teacherId: res.teacher_id, message: res.message });
+          sparkBus.emit({
+            kind: "message:sent",
+            teacherId: res.teacher_id,
+            message: { ...res.message, sender_role: res.message.sender_role as "student" | "teacher" },
+          });
         }
         return `Sent to ${res.to}.`;
       } catch (e) {
@@ -184,7 +188,7 @@ function VoiceModeInner({ token, autoStart, activeHomeworkId, homeworkBar }: Voi
     // Pomodoro
     start_pomodoro: ({ minutes }: { minutes?: number } = {}) => {
       pomodoroStore.start(minutes ?? 25);
-      sparkBus.emit({ kind: "panel:open", name: "pomodoro" });
+      sparkBus.emit({ kind: "overlay:close" });
       sparkBus.emit({ kind: "pomodoro", action: "start", minutes: minutes ?? 25 });
       return `Starting a ${minutes ?? 25} minute focus session.`;
     },
