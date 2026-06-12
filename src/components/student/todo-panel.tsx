@@ -1,49 +1,33 @@
 import { useEffect, useState } from "react";
 import { X, Trash2, Plus, Check } from "lucide-react";
+import { sparkBus, todosStore } from "@/lib/spark-controls";
 
 type Todo = { id: string; text: string; done: boolean; created_at: string };
-const KEY = "spark_todos_v1";
-
-function load(): Todo[] {
-  if (typeof window === "undefined") return [];
-  try {
-    return JSON.parse(localStorage.getItem(KEY) || "[]");
-  } catch {
-    return [];
-  }
-}
-function save(n: Todo[]) {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(n));
-  } catch {}
-}
 
 export function TodoPanel({ onClose }: { onClose: () => void }) {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [draft, setDraft] = useState("");
 
-  useEffect(() => setTodos(load()), []);
+  useEffect(() => {
+    setTodos(todosStore.list());
+    return sparkBus.subscribe((ev) => {
+      if (ev.kind === "store:changed" && ev.key === "todos") {
+        setTodos(todosStore.list());
+      }
+    });
+  }, []);
 
   function add() {
     const text = draft.trim();
     if (!text) return;
-    const next = [
-      { id: crypto.randomUUID(), text, done: false, created_at: new Date().toISOString() },
-      ...todos,
-    ];
-    setTodos(next);
-    save(next);
+    todosStore.add(text);
     setDraft("");
   }
   function toggle(id: string) {
-    const next = todos.map((t) => (t.id === id ? { ...t, done: !t.done } : t));
-    setTodos(next);
-    save(next);
+    todosStore.set(todos.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
   }
   function remove(id: string) {
-    const next = todos.filter((t) => t.id !== id);
-    setTodos(next);
-    save(next);
+    todosStore.set(todos.filter((t) => t.id !== id));
   }
 
   return (
