@@ -512,7 +512,7 @@ export const runQuizVoiceTurn = createServerFn({ method: "POST" })
         ? `Start with question 1 only. Do not ask for confirmation first.`
         : `The student just answered question ${data.turn_index}. Give a one-sentence judgement using exactly one of: correct, partially correct, incorrect. Then ${data.turn_index < 5 ? `ask question ${data.turn_index + 1}` : `give the final score out of 5 and say the quiz is finished`}.`,
       `Previous transcript:\n${data.transcript_so_far || "(none)"}`,
-      `Begin every reply with one emotion tag like [emotion:happy]. Do not read the tag aloud.`,
+      `Express emotions naturally through tone — do NOT use [emotion:...] tags.`,
     ].join("\n");
     const { emotion, reply } = await generateSparkReply(system, userText);
     let audio: string | null = null;
