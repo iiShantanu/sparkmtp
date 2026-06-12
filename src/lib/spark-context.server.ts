@@ -167,7 +167,11 @@ export function buildTutorSystemPrompt(ctx: StudentContext): string {
     `You are Spark, ${student.full_name}'s personal tutor for ${student.class_name ?? "their class"}${student.section ? ` ${student.section}` : ""}.`,
     "",
     `Teacher's pedagogy — follow this strictly:`,
-    `Style: ${teacherCfg.teaching_style}. Mode: ${teacherCfg.mode}. Tone: ${teacherCfg.tone}. Complexity: ${teacherCfg.complexity}. Reply in ${teacherCfg.language}.`,
+    `Style: ${teacherCfg.teaching_style}. Mode: ${teacherCfg.mode}. Tone: ${teacherCfg.tone}. Complexity: ${teacherCfg.complexity}. ${
+      teacherCfg.language.trim().toLowerCase() === "hinglish"
+        ? "Reply in Hinglish — a natural mix of Hindi and English written in Roman (Latin) script, the way Indian students chat. Keep technical/subject terms in English."
+        : `Reply in ${teacherCfg.language}.`
+    }`,
     `Teacher's own instructions: ${teacherCfg.custom_prompt}`,
     "",
     `What you know about ${firstName(student.full_name)}:`,
