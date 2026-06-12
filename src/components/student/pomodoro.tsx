@@ -297,3 +297,88 @@ export function Pomodoro({ onClose, token }: { onClose: () => void; token?: stri
     </div>
   );
 }
+
+// ----- Floating mini Pomodoro -----
+// Shows whenever a pomodoro/timer/session countdown is running OR paused mid-session.
+// Reads persisted state directly so it survives modal close.
+export function PomodoroFloating({ onExpand }: { onExpand: () => void }) {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => tick((x) => x + 1), 500);
+    return () => clearInterval(id);
+  }, []);
+
+  const p = loadPersisted();
+  const isStopwatch = p.mode === "stopwatch";
+  const running = isStopwatch ? !!p.elapsedAt : !!p.endsAt && (p.endsAt ?? 0) > Date.now();
+  const paused = !running && !!p.pausedRemaining && (p.pausedRemaining ?? 0) > 0;
+  const visible = running || paused;
+  if (!visible) return null;
+
+  const seconds = isStopwatch
+    ? Math.round((Date.now() - (p.elapsedAt ?? Date.now())) / 1000)
+    : running
+      ? Math.round(((p.endsAt ?? Date.now()) - Date.now()) / 1000)
+      : (p.pausedRemaining ?? 0);
+
+  function pauseResume() {
+    const cur = loadPersisted();
+    if (running) {
+      if (isStopwatch) {
+        persist({ elapsedAt: null });
+      } else {
+        const remaining = Math.max(0, Math.round(((cur.endsAt ?? Date.now()) - Date.now()) / 1000));
+        persist({ endsAt: null, pausedRemaining: remaining });
+      }
+    } else {
+      if (isStopwatch) {
+        persist({ elapsedAt: Date.now() });
+      } else {
+        const remaining = cur.pausedRemaining ?? 0;
+        persist({ endsAt: Date.now() + remaining * 1000, pausedRemaining: null });
+      }
+    }
+    tick((x) => x + 1);
+    // Notify any mounted Pomodoro modal too.
+    sparkBus.emit({ kind: "pomodoro", action: running ? "pause" : "resume" });
+  }
+
+  function stop() {
+    persist({ endsAt: null, elapsedAt: null, pausedRemaining: null });
+    sparkBus.emit({ kind: "pomodoro", action: "reset" });
+    tick((x) => x + 1);
+  }
+
+  return (
+    <div className="fixed bottom-4 right-4 z-40 flex items-center gap-2 rounded-full border border-border bg-card/95 px-3 py-2 shadow-lg backdrop-blur">
+      <button
+        onClick={onExpand}
+        className="flex items-center gap-2"
+        aria-label="Open Pomodoro"
+      >
+        <span className="text-base font-bold tabular-nums">{fmt(seconds)}</span>
+      </button>
+      <button
+        onClick={pauseResume}
+        aria-label={running ? "Pause" : "Resume"}
+        className="grid h-7 w-7 place-items-center rounded-full bg-primary text-primary-foreground hover:opacity-90"
+      >
+        {running ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+      </button>
+      <button
+        onClick={onExpand}
+        aria-label="Expand"
+        className="grid h-7 w-7 place-items-center rounded-full bg-accent text-foreground hover:bg-accent/80"
+      >
+        <Maximize2 className="h-3.5 w-3.5" />
+      </button>
+      <button
+        onClick={stop}
+        aria-label="Stop"
+        className="grid h-7 w-7 place-items-center rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
