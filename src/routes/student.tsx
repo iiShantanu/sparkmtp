@@ -6,6 +6,7 @@ import {
   Bluetooth,
   BookOpen,
   Brain,
+  Bug,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -331,6 +332,7 @@ function StudentTablet() {
             openNotes={() => setTool("notes")}
             openTodo={() => setTool("todo")}
             openNotices={() => setNoticesOpen(true)}
+            openPiDebug={() => navigate({ to: "/pi-debug" })}
             openHomework={(h) => {
               setActiveHomework(h);
               setOverlay("voice");
@@ -702,6 +704,7 @@ function ToolsPanel({
   openHomework,
   openNotes,
   openTodo,
+  openPiDebug,
 }: {
   online: boolean;
   homework: Homework[];
@@ -715,6 +718,7 @@ function ToolsPanel({
   openHomework: (h: Homework) => void;
   openNotes: () => void;
   openTodo: () => void;
+  openPiDebug: () => void;
 }) {
   return (
     <div className="mx-auto w-full max-w-2xl space-y-6 px-4 pt-4 pb-20">
@@ -729,6 +733,7 @@ function ToolsPanel({
           <ToolTile icon={<Timer className="h-12 w-12" />} label="Pomodoro" onClick={openPomodoro} />
           <ToolTile icon={<Wifi className="h-12 w-12" />} label="Wi-Fi" onClick={openWifi} />
           <ToolTile icon={<Bluetooth className="h-12 w-12" />} label="Bluetooth" onClick={openBluetooth} />
+          <ToolTile icon={<Bug className="h-12 w-12" />} label="Pi Debug" onClick={openPiDebug} />
         </div>
       </div>
 
