@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { Pause, Play, RotateCcw } from "lucide-react";
 import { logStudySession } from "@/lib/student-extras.functions";
+import { sparkBus } from "@/lib/spark-controls";
 
 type Mode = "pomodoro" | "timer" | "session" | "stopwatch";
 const PRESETS = { pomodoro: 25 * 60, shortBreak: 5 * 60, longBreak: 15 * 60 };
@@ -65,6 +66,39 @@ export function Pomodoro({ onClose, token }: { onClose: () => void; token?: stri
   const [elapsed, setElapsed] = useState(0);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const plannedRef = useRef<number>(persisted.plannedSeconds ?? PRESETS.pomodoro);
+
+  // Voice bus: start / pause / resume / reset.
+  useEffect(() => {
+    return sparkBus.subscribe((ev) => {
+      if (ev.kind !== "pomodoro") return;
+      if (ev.action === "start") {
+        const secs = Math.max(1, Math.round((ev.minutes ?? 25) * 60));
+        setMode("pomodoro");
+        setRemaining(secs);
+        plannedRef.current = secs;
+        setRunning(true);
+        persist({
+          mode: "pomodoro",
+          plannedSeconds: secs,
+          endsAt: Date.now() + secs * 1000,
+          elapsedAt: null,
+        });
+      } else if (ev.action === "pause") {
+        setRunning(false);
+        persist({ endsAt: null, elapsedAt: null });
+      } else if (ev.action === "resume") {
+        setRunning(true);
+        if (mode === "stopwatch") persist({ elapsedAt: Date.now() - elapsed * 1000 });
+        else persist({ endsAt: Date.now() + remaining * 1000 });
+      } else if (ev.action === "reset") {
+        setRunning(false);
+        if (mode === "stopwatch") setElapsed(0);
+        else setRemaining(plannedRef.current);
+        persist({ endsAt: null, elapsedAt: null });
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, remaining, elapsed]);
 
   // Restore in-flight countdown across reload
   useEffect(() => {
