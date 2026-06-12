@@ -225,20 +225,20 @@ export function buildFirstMessage(ctx: StudentContext): string {
 
   if (profile.unresolved_doubts.length) {
     const d = profile.unresolved_doubts[0];
-    return `[emotion:friendly] Hi ${name}! Last time we got stuck on ${d.topic}. Do you want to finish that today, or pick a different subject to study?`;
+    return `Hi ${name}! Last time we got stuck on ${d.topic}. Do you want to finish that today, or pick a different subject to study?`;
   }
   const dueSoon = homework.find((h) => h.due_at);
   if (dueSoon) {
-    return `[emotion:friendly] Hey ${name}! You have ${dueSoon.subject ?? "homework"} on "${dueSoon.title}" coming up. Do you want to study ${dueSoon.subject ?? "that"} today, or pick another subject?`;
+    return `Hey ${name}! You have ${dueSoon.subject ?? "homework"} on "${dueSoon.title}" coming up. Do you want to study ${dueSoon.subject ?? "that"} today, or pick another subject?`;
   }
   if (profile.weak_topics.length) {
-    return `[emotion:thinking] Hi ${name}! Your teacher flagged ${profile.weak_topics[0]} as something to practice. Which subject do you want to study today — that one, or something else?`;
+    return `Hi ${name}! Your teacher flagged ${profile.weak_topics[0]} as something to practice. Which subject do you want to study today — that one, or something else?`;
   }
   const subjList = subjects
     .slice(0, 4)
     .map((s) => s.name)
     .join(", ");
-  return `[emotion:friendly] Hi ${name}! Which subject do you want to study today${subjList ? ` — ${subjList}` : ""}?`;
+  return `Hi ${name}! Which subject do you want to study today${subjList ? ` — ${subjList}` : ""}?`;
 }
 
 // ---- profile update (cheap LLM call) ----

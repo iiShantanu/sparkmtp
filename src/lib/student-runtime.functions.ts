@@ -127,10 +127,7 @@ function buildSystemPrompt(
   if (extras?.homework_title) lines.push(`Current homework: ${extras.homework_title}.`);
   if (extras?.instructions) lines.push(`Teacher's instructions: ${extras.instructions}`);
   lines.push(
-    "IMPORTANT: Begin EVERY reply with one emotion tag in square brackets, chosen from: " +
-      "[emotion:friendly], [emotion:happy], [emotion:thinking], [emotion:love], [emotion:angry], " +
-      "[emotion:forgot], [emotion:error]. Example: '[emotion:friendly] Let's try the first step…'. " +
-      "Pick the tag that best matches the feeling of your reply. Do not mention the tag in your spoken words.",
+    "Express your emotions naturally through tone and wording — do NOT use [emotion:...] tags.",
   );
   return lines.join("\n");
 }
@@ -315,7 +312,7 @@ export const startVoiceConversation = createServerFn({ method: "POST" })
       ]
         .filter(Boolean)
         .join("\n");
-      firstMessage = `[emotion:friendly] Let's work on "${homework.title}". Read me the first question or tell me where you're stuck.`;
+      firstMessage = `Let's work on "${homework.title}". Read me the first question or tell me where you're stuck.`;
     }
     return {
       agentId,
