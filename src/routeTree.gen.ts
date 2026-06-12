@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as StudentRouteImport } from './routes/student'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as PiDebugRouteImport } from './routes/pi-debug'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as DevicePairRouteImport } from './routes/device-pair'
@@ -53,6 +54,11 @@ const SignupRoute = SignupRouteImport.update({
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PiDebugRoute = PiDebugRouteImport.update({
+  id: '/pi-debug',
+  path: '/pi-debug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -211,6 +217,7 @@ export interface FileRoutesByFullPath {
   '/device-pair': typeof DevicePairRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
+  '/pi-debug': typeof PiDebugRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/student': typeof StudentRoute
@@ -242,6 +249,7 @@ export interface FileRoutesByTo {
   '/device-pair': typeof DevicePairRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
+  '/pi-debug': typeof PiDebugRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/student': typeof StudentRoute
@@ -272,6 +280,7 @@ export interface FileRoutesById {
   '/device-pair': typeof DevicePairRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
+  '/pi-debug': typeof PiDebugRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/student': typeof StudentRoute
@@ -305,6 +314,7 @@ export interface FileRouteTypes {
     | '/device-pair'
     | '/forgot-password'
     | '/login'
+    | '/pi-debug'
     | '/reset-password'
     | '/signup'
     | '/student'
@@ -336,6 +346,7 @@ export interface FileRouteTypes {
     | '/device-pair'
     | '/forgot-password'
     | '/login'
+    | '/pi-debug'
     | '/reset-password'
     | '/signup'
     | '/student'
@@ -365,6 +376,7 @@ export interface FileRouteTypes {
     | '/device-pair'
     | '/forgot-password'
     | '/login'
+    | '/pi-debug'
     | '/reset-password'
     | '/signup'
     | '/student'
@@ -398,6 +410,7 @@ export interface RootRouteChildren {
   DevicePairRoute: typeof DevicePairRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
+  PiDebugRoute: typeof PiDebugRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SignupRoute: typeof SignupRoute
   StudentRoute: typeof StudentRoute
@@ -424,6 +437,13 @@ declare module '@tanstack/react-router' {
       path: '/reset-password'
       fullPath: '/reset-password'
       preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pi-debug': {
+      id: '/pi-debug'
+      path: '/pi-debug'
+      fullPath: '/pi-debug'
+      preLoaderRoute: typeof PiDebugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -719,6 +739,7 @@ const rootRouteChildren: RootRouteChildren = {
   DevicePairRoute: DevicePairRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
+  PiDebugRoute: PiDebugRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SignupRoute: SignupRoute,
   StudentRoute: StudentRoute,
