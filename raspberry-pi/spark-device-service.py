@@ -161,20 +161,51 @@ def bt_status() -> Any:
 
 @app.get("/bt/scan")
 def bt_scan() -> Any:
-    bt_cmd("power on\nagent on\nscan on\n", timeout=8)
-    code, out, _ = bt_cmd("devices\n", timeout=5)
-    devices: list[dict[str, Any]] = []
-    paired_codes = bt_cmd("paired-devices\n")[1]
-    paired_macs = set(
-        m.group(1)
-        for m in re.finditer(r"Device\s+([0-9A-F:]{17})", paired_codes)
+    # Query string ?duration=12 lets the UI extend the discovery window.
+    try:
+        duration = max(4, min(int(request.args.get("duration", "12")), 30))
+    except ValueError:
+        duration = 12
+
+    # Make sure the adapter is up and a default agent is registered, otherwise
+    # discovery returns no results on a freshly booted Pi.
+    bt_cmd(
+        "power on\nagent NoInputNoOutput\ndefault-agent\npairable on\n"
+        "menu scan\ntransport auto\nclear\nback\n",
+        timeout=6,
     )
+
+    # `bluetoothctl --timeout N scan on` blocks for N seconds while keeping
+    # discovery active, then exits cleanly. Piping `scan on` into an interactive
+    # bluetoothctl (the previous approach) stops discovery the moment the pipe
+    # closes, which is why nearby speakers never showed up.
+    run(["bluetoothctl", "--timeout", str(duration), "scan", "on"], timeout=duration + 5)
+
+    code, out, _ = bt_cmd("devices\n", timeout=5)
+    paired_out = bt_cmd("devices Paired\n", timeout=5)[1]
+    paired_macs = {
+        m.group(1)
+        for m in re.finditer(r"Device\s+([0-9A-F:]{17})", paired_out)
+    }
+
+    devices: list[dict[str, Any]] = []
+    seen: set[str] = set()
     for line in out.splitlines():
-        m = re.match(r"^Device\s+([0-9A-F:]{17})\s+(.+)$", line)
-        if m:
-            mac = m.group(1)
-            devices.append({"mac": mac, "name": m.group(2), "paired": mac in paired_macs})
-    bt_cmd("scan off\n", timeout=3)
+        m = re.match(r"^\s*(?:\[\S+\]\s*)?Device\s+([0-9A-F:]{17})\s+(.+)$", line)
+        if not m:
+            continue
+        mac, name = m.group(1), m.group(2).strip()
+        if mac in seen:
+            continue
+        seen.add(mac)
+        # Skip cached devices that bluez only knows by MAC (no advertised name);
+        # speakers always broadcast a friendly name when they're in pairing mode.
+        if name.replace(":", "").upper() == mac.replace(":", ""):
+            name = ""
+        devices.append({"mac": mac, "name": name, "paired": mac in paired_macs})
+
+    # Surface nameless paired devices first, then named discoveries by name.
+    devices.sort(key=lambda d: (not d["paired"], not d["name"], d["name"].lower()))
     return jsonify(devices=devices)
 
 

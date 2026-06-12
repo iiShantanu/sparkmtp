@@ -5,7 +5,8 @@
 // with a typed error so the UI can show a friendly "unavailable" state.
 
 const BASE = "http://127.0.0.1:8765";
-const TIMEOUT_MS = 4000;
+const DEFAULT_TIMEOUT_MS = 4000;
+const SCAN_TIMEOUT_MS = 20000;
 
 export class DeviceBridgeUnavailable extends Error {
   constructor(msg = "Spark device service is not reachable on this device.") {
@@ -14,9 +15,9 @@ export class DeviceBridgeUnavailable extends Error {
   }
 }
 
-async function call<T>(path: string, init?: RequestInit): Promise<T> {
+async function call<T>(path: string, init?: RequestInit, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<T> {
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const res = await fetch(`${BASE}${path}`, {
       ...init,
@@ -58,7 +59,12 @@ export const deviceBridge = {
   bluetooth: {
     status: () =>
       call<{ powered: boolean; connected: Array<{ mac: string; name: string }> }>("/bt/status"),
-    scan: () => call<{ devices: Array<{ mac: string; name: string; paired: boolean }> }>("/bt/scan"),
+    scan: () =>
+      call<{ devices: Array<{ mac: string; name: string; paired: boolean }> }>(
+        "/bt/scan?duration=12",
+        undefined,
+        SCAN_TIMEOUT_MS,
+      ),
     pair: (mac: string) => call<{ ok: boolean; error?: string }>("/bt/pair", {
       method: "POST",
       body: JSON.stringify({ mac }),
