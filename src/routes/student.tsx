@@ -174,6 +174,8 @@ function StudentTablet() {
       } else if (ev.kind === "panel:close") {
         setOverlay(null);
         setTool(null);
+      } else if (ev.kind === "overlay:close") {
+        setOverlay(null);
       }
     });
   }, []);

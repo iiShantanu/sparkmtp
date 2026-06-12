@@ -204,17 +204,21 @@ export const voiceFindAndSendMessage = createServerFn({ method: "POST" })
         error: `I couldn't find a teacher matching "${data.teacher_query}". Your teachers are: ${opts}.`,
       };
     }
-    const { error } = await supabaseAdmin.from("student_messages").insert({
-      student_id,
-      teacher_id: match.teacher_id,
-      sender_role: "student",
-      body: data.body.trim(),
-    });
+    const { data: inserted, error } = await supabaseAdmin
+      .from("student_messages")
+      .insert({
+        student_id,
+        teacher_id: match.teacher_id,
+        sender_role: "student",
+        body: data.body.trim(),
+      })
+      .select("id, sender_role, body, created_at, read_at")
+      .single();
     if (error) return { ok: false, error: error.message };
     const label = match.full_name
       ? match.full_name + (match.subject ? ` (${match.subject})` : "")
       : match.subject || "your teacher";
-    return { ok: true, to: label };
+    return { ok: true, to: label, teacher_id: match.teacher_id, message: inserted };
   });
 
 export const voiceListRecentMessages = createServerFn({ method: "POST" })

@@ -8,6 +8,7 @@ import {
   sparkBus,
   notesStore,
   todosStore,
+  pomodoroStore,
   type PanelName,
 } from "@/lib/spark-controls";
 import {
@@ -76,6 +77,9 @@ function VoiceModeInner({ token, autoStart, activeHomeworkId, homeworkBar }: Voi
           data: { device_token: tokenRef.current, teacher_query: teacher, body },
         });
         if (!res.ok) return res.error || "Could not send.";
+        if (res.teacher_id && res.message) {
+          sparkBus.emit({ kind: "message:sent", teacherId: res.teacher_id, message: res.message });
+        }
         return `Sent to ${res.to}.`;
       } catch (e) {
         return `Send failed: ${(e as Error).message}`;
@@ -179,19 +183,23 @@ function VoiceModeInner({ token, autoStart, activeHomeworkId, homeworkBar }: Voi
 
     // Pomodoro
     start_pomodoro: ({ minutes }: { minutes?: number } = {}) => {
+      pomodoroStore.start(minutes ?? 25);
       sparkBus.emit({ kind: "panel:open", name: "pomodoro" });
       sparkBus.emit({ kind: "pomodoro", action: "start", minutes: minutes ?? 25 });
       return `Starting a ${minutes ?? 25} minute focus session.`;
     },
     pause_pomodoro: () => {
+      pomodoroStore.pause();
       sparkBus.emit({ kind: "pomodoro", action: "pause" });
       return "Paused.";
     },
     resume_pomodoro: () => {
+      pomodoroStore.resume();
       sparkBus.emit({ kind: "pomodoro", action: "resume" });
       return "Resumed.";
     },
     reset_pomodoro: () => {
+      pomodoroStore.reset();
       sparkBus.emit({ kind: "pomodoro", action: "reset" });
       return "Reset.";
     },
