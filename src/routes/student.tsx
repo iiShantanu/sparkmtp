@@ -332,6 +332,7 @@ function StudentTablet() {
             openNotes={() => setTool("notes")}
             openTodo={() => setTool("todo")}
             openNotices={() => setNoticesOpen(true)}
+            openPiDebug={() => navigate({ to: "/pi-debug" })}
             openHomework={(h) => {
               setActiveHomework(h);
               setOverlay("voice");
