@@ -53,6 +53,27 @@ function VoiceModeInner({ token, autoStart, activeHomeworkId, homeworkBar }: Voi
     setTranscript((t) => [...t, { role, text }]);
   }, []);
 
+  function extractVoiceMessage(msg: unknown): { role: "you" | "spark"; text: string } | null {
+    const m = msg as any;
+    const text =
+      m?.message ??
+      m?.text ??
+      m?.user_transcription_event?.user_transcript ??
+      m?.agent_response_event?.agent_response ??
+      m?.agent_response_correction_event?.corrected_agent_response ??
+      "";
+    const clean = String(text).trim();
+    if (!clean) return null;
+    const role =
+      m?.source === "user" ||
+      m?.role === "user" ||
+      m?.type === "user_transcript" ||
+      !!m?.user_transcription_event
+        ? "you"
+        : "spark";
+    return { role, text: clean };
+  }
+
   // ----- Client tool handlers -----
   const tokenRef = useRef(token);
   useEffect(() => {
@@ -354,12 +375,11 @@ function VoiceModeInner({ token, autoStart, activeHomeworkId, homeworkBar }: Voi
 
   const conv = useConversation({
     clientTools: clientTools.current,
-    onMessage: (msg: { source?: string; message?: string }) => {
-      const text = (msg?.message ?? "").trim();
-      if (!text) return;
-      const role = msg?.source === "user" ? "you" : "spark";
-      appendLine(role, text);
-      if (role === "you") void runLocalCommandFallback(text);
+    onMessage: (msg: unknown) => {
+      const parsed = extractVoiceMessage(msg);
+      if (!parsed) return;
+      appendLine(parsed.role, parsed.text);
+      if (parsed.role === "you") void runLocalCommandFallback(parsed.text);
     },
     onError: (err: unknown) => {
       const message =
