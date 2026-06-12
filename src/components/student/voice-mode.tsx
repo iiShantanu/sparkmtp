@@ -8,6 +8,7 @@ import {
   sparkBus,
   notesStore,
   todosStore,
+  pomodoroStore,
   type PanelName,
 } from "@/lib/spark-controls";
 import {
@@ -44,6 +45,7 @@ function VoiceModeInner({ token, autoStart, activeHomeworkId, homeworkBar }: Voi
   const startedRef = useRef(false);
   const userEndingRef = useRef(false);
   const lastHomeworkIdRef = useRef<string | null>(activeHomeworkId);
+  const lastLocalCommandRef = useRef<{ text: string; at: number } | null>(null);
 
   const appendLine = useCallback((role: string, text: string) => {
     if (!text.trim()) return;
@@ -51,11 +53,114 @@ function VoiceModeInner({ token, autoStart, activeHomeworkId, homeworkBar }: Voi
     setTranscript((t) => [...t, { role, text }]);
   }, []);
 
+  function extractVoiceMessage(msg: unknown): { role: "you" | "spark"; text: string } | null {
+    const m = msg as any;
+    const text =
+      m?.message ??
+      m?.text ??
+      m?.user_transcription_event?.user_transcript ??
+      m?.agent_response_event?.agent_response ??
+      m?.agent_response_correction_event?.corrected_agent_response ??
+      "";
+    const clean = String(text).trim();
+    if (!clean) return null;
+    const role =
+      m?.source === "user" ||
+      m?.role === "user" ||
+      m?.type === "user_transcript" ||
+      !!m?.user_transcription_event
+        ? "you"
+        : "spark";
+    return { role, text: clean };
+  }
+
   // ----- Client tool handlers -----
   const tokenRef = useRef(token);
   useEffect(() => {
     tokenRef.current = token;
   }, [token]);
+
+  const runLocalCommandFallback = useCallback(
+    async (rawText: string) => {
+      const text = rawText.trim();
+      const normalized = text.toLowerCase().replace(/\s+/g, " ");
+      const last = lastLocalCommandRef.current;
+      if (last?.text === normalized && Date.now() - last.at < 8000) return;
+
+      const remember = () => {
+        lastLocalCommandRef.current = { text: normalized, at: Date.now() };
+      };
+      const afterKeyword = (pattern: RegExp) => text.match(pattern)?.[1]?.trim().replace(/[.!?]$/, "") ?? "";
+
+      if (/\b(open|show)\b.*\bnotes?\b|\bnotes?\b.*\b(open|show)\b/i.test(text)) {
+        remember();
+        sparkBus.emit({ kind: "panel:open", name: "notes" });
+        return;
+      }
+      const noteText =
+        afterKeyword(/(?:take|add|create|save|write)(?: a)? note(?: that|:)?\s+(.+)/i) ||
+        afterKeyword(/(?:note down|write down|save this)\s+(.+)/i);
+      if (noteText) {
+        remember();
+        notesStore.add(noteText);
+        sparkBus.emit({ kind: "panel:open", name: "notes" });
+        return;
+      }
+
+      if (/\b(open|show)\b.*\b(to-?do|todo|tasks?)\b|\b(to-?do|todo|tasks?)\b.*\b(open|show)\b/i.test(text)) {
+        remember();
+        sparkBus.emit({ kind: "panel:open", name: "todo" });
+        return;
+      }
+      const todoText =
+        afterKeyword(/(?:add|create|make)(?: a)?(?: to-?do| todo| task)(?: that|:)?\s+(.+)/i) ||
+        afterKeyword(/remind me to\s+(.+)/i);
+      if (todoText) {
+        remember();
+        todosStore.add(todoText);
+        sparkBus.emit({ kind: "panel:open", name: "todo" });
+        return;
+      }
+
+      const pomodoroIntent = /\b(pomodoro|focus session|focus timer|study timer)\b/i.test(text);
+      if (pomodoroIntent && /\b(start|begin|set|run)\b/i.test(text)) {
+        remember();
+        const minutes = Number(text.match(/(\d+)\s*(?:minute|min|minutes|mins)/i)?.[1]) || 25;
+        pomodoroStore.start(minutes);
+        sparkBus.emit({ kind: "overlay:close" });
+        sparkBus.emit({ kind: "pomodoro", action: "start", minutes });
+        return;
+      }
+
+      if (/\b(open|show)\b.*\bmessages?\b|\bmessages?\b.*\b(open|show)\b/i.test(text)) {
+        remember();
+        sparkBus.emit({ kind: "panel:open", name: "messages" });
+        return;
+      }
+      const msg = text.match(/send (?:a )?(?:message|text) to (.+?)(?: that| saying|:|,)?\s+(.+)/i);
+      if (msg?.[1] && msg?.[2]) {
+        remember();
+        sparkBus.emit({ kind: "panel:open", name: "messages" });
+        try {
+          const res = await sendMsg({
+            data: { device_token: tokenRef.current, teacher_query: msg[1].trim(), body: msg[2].trim() },
+          });
+          if (res.ok && res.teacher_id && res.message) {
+            sparkBus.emit({
+              kind: "message:sent",
+              teacherId: res.teacher_id,
+              message: { ...res.message, sender_role: res.message.sender_role as "student" | "teacher" },
+            });
+          } else if (!res.ok) {
+            setWarning(res.error || "Could not send message.");
+          }
+        } catch (e) {
+          setWarning(`Send failed: ${(e as Error).message}`);
+        }
+      }
+    },
+    [sendMsg],
+  );
 
   const clientTools = useRef<Record<string, (params: any) => Promise<string> | string>>({
     // Panel control
@@ -76,6 +181,13 @@ function VoiceModeInner({ token, autoStart, activeHomeworkId, homeworkBar }: Voi
           data: { device_token: tokenRef.current, teacher_query: teacher, body },
         });
         if (!res.ok) return res.error || "Could not send.";
+        if (res.teacher_id && res.message) {
+          sparkBus.emit({
+            kind: "message:sent",
+            teacherId: res.teacher_id,
+            message: { ...res.message, sender_role: res.message.sender_role as "student" | "teacher" },
+          });
+        }
         return `Sent to ${res.to}.`;
       } catch (e) {
         return `Send failed: ${(e as Error).message}`;
@@ -179,19 +291,23 @@ function VoiceModeInner({ token, autoStart, activeHomeworkId, homeworkBar }: Voi
 
     // Pomodoro
     start_pomodoro: ({ minutes }: { minutes?: number } = {}) => {
-      sparkBus.emit({ kind: "panel:open", name: "pomodoro" });
+      pomodoroStore.start(minutes ?? 25);
+      sparkBus.emit({ kind: "overlay:close" });
       sparkBus.emit({ kind: "pomodoro", action: "start", minutes: minutes ?? 25 });
       return `Starting a ${minutes ?? 25} minute focus session.`;
     },
     pause_pomodoro: () => {
+      pomodoroStore.pause();
       sparkBus.emit({ kind: "pomodoro", action: "pause" });
       return "Paused.";
     },
     resume_pomodoro: () => {
+      pomodoroStore.resume();
       sparkBus.emit({ kind: "pomodoro", action: "resume" });
       return "Resumed.";
     },
     reset_pomodoro: () => {
+      pomodoroStore.reset();
       sparkBus.emit({ kind: "pomodoro", action: "reset" });
       return "Reset.";
     },
@@ -259,11 +375,11 @@ function VoiceModeInner({ token, autoStart, activeHomeworkId, homeworkBar }: Voi
 
   const conv = useConversation({
     clientTools: clientTools.current,
-    onMessage: (msg: { source?: string; message?: string }) => {
-      const text = (msg?.message ?? "").trim();
-      if (!text) return;
-      const role = msg?.source === "user" ? "you" : "spark";
-      appendLine(role, text);
+    onMessage: (msg: unknown) => {
+      const parsed = extractVoiceMessage(msg);
+      if (!parsed) return;
+      appendLine(parsed.role, parsed.text);
+      if (parsed.role === "you") void runLocalCommandFallback(parsed.text);
     },
     onError: (err: unknown) => {
       const message =

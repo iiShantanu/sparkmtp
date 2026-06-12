@@ -6,6 +6,7 @@ import {
   listStudentTeachers,
   sendStudentMessage,
 } from "@/lib/student-messages.functions";
+import { sparkBus } from "@/lib/spark-controls";
 
 type Teacher = {
   teacher_id: string;
@@ -40,6 +41,23 @@ export function MessagesPanel({ token }: { token: string }) {
     listTeachers({ data: { device_token: token } })
       .then((rows) => setTeachers(rows as Teacher[]))
       .catch((e) => setErr((e as Error).message));
+  }, [listTeachers, token]);
+
+  useEffect(() => {
+    return sparkBus.subscribe((ev) => {
+      if (ev.kind !== "message:sent") return;
+      listTeachers({ data: { device_token: token } })
+        .then((rows) => {
+          const nextTeachers = rows as Teacher[];
+          setTeachers(nextTeachers);
+          const teacher = nextTeachers.find((t) => t.teacher_id === ev.teacherId);
+          if (teacher) setActive(teacher);
+        })
+        .catch((e) => setErr((e as Error).message));
+      setMessages((cur) =>
+        cur.some((m) => m.id === ev.message.id) ? cur : [...cur, ev.message as Msg],
+      );
+    });
   }, [listTeachers, token]);
 
   useEffect(() => {

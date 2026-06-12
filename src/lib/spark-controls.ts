@@ -16,6 +16,18 @@ export type MusicCategory = "lofi" | "focus" | "chill" | "classical" | "nature";
 export type SparkEvent =
   | { kind: "panel:open"; name: PanelName }
   | { kind: "panel:close" }
+  | { kind: "overlay:close" }
+  | {
+      kind: "message:sent";
+      teacherId: string;
+      message: {
+        id: string;
+        sender_role: "student" | "teacher";
+        body: string;
+        created_at: string;
+        read_at: string | null;
+      };
+    }
   | {
       kind: "music";
       action: "play" | "pause" | "resume" | "next" | "prev" | "stop";
@@ -72,6 +84,69 @@ export const sparkBus = {
     return () => {
       listeners.delete(l);
     };
+  },
+};
+
+const POMODORO_KEY = "spark_pomodoro_state";
+
+type StoredPomodoro = {
+  mode?: "pomodoro" | "timer" | "session" | "stopwatch";
+  endsAt?: number | null;
+  elapsedAt?: number | null;
+  customMin?: number;
+  sessionKind?: string;
+  plannedSeconds?: number;
+  pausedRemaining?: number | null;
+};
+
+function readPomodoro(): StoredPomodoro {
+  if (typeof window === "undefined") return {};
+  try {
+    return JSON.parse(localStorage.getItem(POMODORO_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function writePomodoro(value: StoredPomodoro) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(POMODORO_KEY, JSON.stringify({ ...readPomodoro(), ...value }));
+  } catch {
+    /* ignore */
+  }
+}
+
+export const pomodoroStore = {
+  start(minutes = 25) {
+    const seconds = Math.max(1, Math.round(minutes * 60));
+    writePomodoro({
+      mode: "pomodoro",
+      plannedSeconds: seconds,
+      endsAt: Date.now() + seconds * 1000,
+      elapsedAt: null,
+      pausedRemaining: null,
+    });
+  },
+  pause() {
+    const cur = readPomodoro();
+    if (cur.endsAt && cur.endsAt > Date.now()) {
+      writePomodoro({
+        endsAt: null,
+        elapsedAt: null,
+        pausedRemaining: Math.max(0, Math.round((cur.endsAt - Date.now()) / 1000)),
+      });
+    }
+  },
+  resume() {
+    const cur = readPomodoro();
+    const remaining = cur.pausedRemaining ?? 0;
+    if (remaining > 0) {
+      writePomodoro({ endsAt: Date.now() + remaining * 1000, pausedRemaining: null });
+    }
+  },
+  reset() {
+    writePomodoro({ endsAt: null, elapsedAt: null, pausedRemaining: null });
   },
 };
 
