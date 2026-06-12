@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Music, Pause, Play, Plus, SkipBack, SkipForward, Trash2, X } from "lucide-react";
 import { musicStore, type Track } from "@/lib/music-store";
+import { sparkBus } from "@/lib/spark-controls";
 
 type CuratedCategory = "lofi" | "instrumental" | "nature";
 const CURATED: Record<CuratedCategory, Array<{ name: string; url: string }>> = {
@@ -71,6 +72,38 @@ export function MusicPlayer({ onClose }: { onClose: () => void }) {
     setIdx((i) => (i - 1 + tracks.length) % tracks.length);
     setPlaying(true);
   }
+
+  // Voice bus: play / pause / resume / next / prev.
+  useEffect(() => {
+    return sparkBus.subscribe((ev) => {
+      if (ev.kind !== "music") return;
+      if (ev.action === "play") {
+        // Pick a matching track if a hint is provided; otherwise first track.
+        if (!tracks.length) return;
+        let target = 0;
+        if (ev.track) {
+          const q = ev.track.toLowerCase();
+          const found = tracks.findIndex((t) => t.name.toLowerCase().includes(q));
+          if (found >= 0) target = found;
+        }
+        setTab("library");
+        setIdx(target);
+        setPlaying(true);
+      } else if (ev.action === "pause") {
+        setPlaying(false);
+      } else if (ev.action === "resume") {
+        if (idx < 0 && tracks.length) setIdx(0);
+        setPlaying(true);
+      } else if (ev.action === "next") {
+        next();
+      } else if (ev.action === "prev") {
+        prev();
+      } else if (ev.action === "stop") {
+        setPlaying(false);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tracks, idx]);
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-6" onClick={onClose}>
