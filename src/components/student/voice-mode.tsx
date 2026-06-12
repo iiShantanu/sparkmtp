@@ -70,6 +70,7 @@ function VoiceModeInner({ token, autoStart, activeHomeworkId, homeworkBar }: Voi
 
     // Messages
     send_message: async ({ teacher, body }: { teacher: string; body: string }) => {
+      sparkBus.emit({ kind: "panel:open", name: "messages" });
       try {
         const res = await sendMsg({
           data: { device_token: tokenRef.current, teacher_query: teacher, body },
@@ -84,6 +85,7 @@ function VoiceModeInner({ token, autoStart, activeHomeworkId, homeworkBar }: Voi
       teacher,
       limit,
     }: { teacher?: string; limit?: number } = {}) => {
+      sparkBus.emit({ kind: "panel:open", name: "messages" });
       try {
         const res = await listMsgs({
           data: {
@@ -106,9 +108,11 @@ function VoiceModeInner({ token, autoStart, activeHomeworkId, homeworkBar }: Voi
     add_note: ({ text }: { text: string }) => {
       if (!text?.trim()) return "I need note text.";
       notesStore.add(text);
+      sparkBus.emit({ kind: "panel:open", name: "notes" });
       return "Saved.";
     },
     list_notes: ({ limit }: { limit?: number } = {}) => {
+      sparkBus.emit({ kind: "panel:open", name: "notes" });
       const n = notesStore.list().slice(0, limit ?? 5);
       if (n.length === 0) return "You have no notes.";
       return n.map((x, i) => `${i + 1}. ${x.text}`).join(" | ");
@@ -116,6 +120,7 @@ function VoiceModeInner({ token, autoStart, activeHomeworkId, homeworkBar }: Voi
     delete_note: ({ match }: { match: string }) => {
       const m = (match || "").trim().toLowerCase();
       const removed = !m || m === "last" ? notesStore.removeLast() : notesStore.removeMatch(match);
+      sparkBus.emit({ kind: "panel:open", name: "notes" });
       return removed ? "Deleted." : "No matching note.";
     },
 
@@ -123,9 +128,11 @@ function VoiceModeInner({ token, autoStart, activeHomeworkId, homeworkBar }: Voi
     add_todo: ({ text }: { text: string }) => {
       if (!text?.trim()) return "I need a task.";
       todosStore.add(text);
+      sparkBus.emit({ kind: "panel:open", name: "todo" });
       return "Added.";
     },
     list_todos: ({ filter }: { filter?: "all" | "open" | "done" } = {}) => {
+      sparkBus.emit({ kind: "panel:open", name: "todo" });
       const all = todosStore.list();
       const filtered =
         filter === "all"
@@ -138,6 +145,7 @@ function VoiceModeInner({ token, autoStart, activeHomeworkId, homeworkBar }: Voi
     },
     complete_todo: ({ match }: { match: string }) => {
       const t = todosStore.completeMatch(match);
+      sparkBus.emit({ kind: "panel:open", name: "todo" });
       return t ? `Marked "${t.text}" done.` : "I couldn't find that task.";
     },
 
