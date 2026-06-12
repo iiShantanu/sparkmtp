@@ -42,6 +42,7 @@ import { deviceHeartbeat } from "@/lib/device.functions";
 import { SparkAvatar, type SparkEmotion } from "@/components/spark-avatar";
 import { Clock } from "@/components/student/clock";
 import { Pomodoro } from "@/components/student/pomodoro";
+import { PomodoroFloating } from "@/components/student/pomodoro";
 import { MusicPlayer } from "@/components/student/music-player";
 import { WifiPanel } from "@/components/student/wifi-panel";
 import { BluetoothPanel } from "@/components/student/bluetooth-panel";
@@ -167,6 +168,8 @@ function StudentTablet() {
           setOverlay(ev.name as Overlay);
         } else {
           setTool(toolPanels[ev.name as Exclude<PanelName, "messages">]);
+          // If voice/chat overlay is up, dismiss it so the tool panel is visible.
+          setOverlay((cur) => (cur === "voice" || cur === "chat" ? null : cur));
         }
       } else if (ev.kind === "panel:close") {
         setOverlay(null);
@@ -434,6 +437,9 @@ function StudentTablet() {
       {tool === "bt" && <BluetoothPanel onClose={() => setTool(null)} />}
       {tool === "notes" && <NotesPanel onClose={() => setTool(null)} />}
       {tool === "todo" && <TodoPanel onClose={() => setTool(null)} />}
+      {tool !== "pomodoro" && (
+        <PomodoroFloating onExpand={() => setTool("pomodoro")} />
+      )}
       <VirtualKeyboard />
     </div>
   );
