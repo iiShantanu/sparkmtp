@@ -50,6 +50,7 @@ import { NotesPanel } from "@/components/student/notes-panel";
 import { TodoPanel } from "@/components/student/todo-panel";
 import { useOnline } from "@/hooks/use-online";
 import { VirtualKeyboard } from "@/components/student/virtual-keyboard";
+import { sparkBus, type PanelName } from "@/lib/spark-controls";
 
 const VoiceMode = lazy(() => import("@/components/student/voice-mode"));
 
@@ -148,6 +149,31 @@ function StudentTablet() {
     }
     setToken(t);
   }, [navigate]);
+
+  // Spark voice tools dispatch panel-open events through sparkBus.
+  useEffect(() => {
+    const overlayPanels: PanelName[] = ["messages"];
+    const toolPanels: Record<Exclude<PanelName, "messages">, Tool> = {
+      notes: "notes",
+      todo: "todo",
+      music: "music",
+      pomodoro: "pomodoro",
+      wifi: "wifi",
+      bt: "bt",
+    };
+    return sparkBus.subscribe((ev) => {
+      if (ev.kind === "panel:open") {
+        if (overlayPanels.includes(ev.name)) {
+          setOverlay(ev.name as Overlay);
+        } else {
+          setTool(toolPanels[ev.name as Exclude<PanelName, "messages">]);
+        }
+      } else if (ev.kind === "panel:close") {
+        setOverlay(null);
+        setTool(null);
+      }
+    });
+  }, []);
 
   const refresh = useCallback(
     async (t: string) => {

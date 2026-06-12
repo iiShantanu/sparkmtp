@@ -7,6 +7,7 @@ import {
   tts,
   getConversationToken,
   ensureAgentOverridesEnabled,
+  ensureAgentToolsProvisioned,
 } from "./elevenlabs.server";
 import {
   loadStudentContext,
@@ -15,6 +16,7 @@ import {
   updateLearningProfile,
   getLearningProfile,
 } from "./spark-context.server";
+import { VOICE_TOOL_USAGE_PROMPT } from "./spark-voice-tools";
 
 const DEFAULT_VOICE = "EXAVITQu4vr4xnSDxMaL"; // Sarah
 
@@ -301,6 +303,7 @@ export const startVoiceConversation = createServerFn({ method: "POST" })
     const [token, overridesOk] = await Promise.all([
       getConversationToken(agentId),
       ensureAgentOverridesEnabled(agentId),
+      ensureAgentToolsProvisioned(agentId).catch(() => false),
     ]);
     let systemPrompt: string | null = overridesOk ? buildTutorSystemPrompt(ctx) : null;
     let firstMessage: string | null = overridesOk ? buildFirstMessage(ctx) : null;
@@ -317,6 +320,9 @@ export const startVoiceConversation = createServerFn({ method: "POST" })
         .filter(Boolean)
         .join("\n");
       firstMessage = `Let's work on "${homework.title}". Read me the first question or tell me where you're stuck.`;
+    }
+    if (overridesOk && systemPrompt) {
+      systemPrompt = `${systemPrompt}\n\n${VOICE_TOOL_USAGE_PROMPT}`;
     }
     return {
       agentId,

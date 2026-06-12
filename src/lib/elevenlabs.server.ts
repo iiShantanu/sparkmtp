@@ -1,6 +1,8 @@
 // Server-only helpers for ElevenLabs (TTS, STT, Conversational AI tokens).
 // Never import from client code.
 
+import { SPARK_VOICE_TOOLS, type VoiceToolDef } from "./spark-voice-tools";
+
 const API = "https://api.elevenlabs.io/v1";
 
 function key(): string {
@@ -62,6 +64,73 @@ export async function ensureAgentOverridesEnabled(agentId: string): Promise<bool
     return ok;
   } catch (e) {
     console.warn("ElevenLabs agent PATCH threw:", (e as Error).message);
+    return false;
+  }
+}
+
+// Provision client tools on the agent so it can call browser-side handlers.
+// Idempotent; cached per-process for 10 minutes.
+let toolsProvisionedCache: { agentId: string; ok: boolean; at: number } | null = null;
+function toolDefForApi(t: VoiceToolDef) {
+  return {
+    type: "client" as const,
+    name: t.name,
+    description: t.description,
+    parameters: t.parameters,
+    expects_response: true,
+    response_timeout_secs: 15,
+  };
+}
+export async function ensureAgentToolsProvisioned(agentId: string): Promise<boolean> {
+  if (
+    toolsProvisionedCache &&
+    toolsProvisionedCache.agentId === agentId &&
+    Date.now() - toolsProvisionedCache.at < 10 * 60_000
+  ) {
+    return toolsProvisionedCache.ok;
+  }
+  const tools = SPARK_VOICE_TOOLS.map(toolDefForApi);
+  try {
+    const res = await fetch(`${API}/convai/agents/${encodeURIComponent(agentId)}`, {
+      method: "PATCH",
+      headers: { "xi-api-key": key(), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        conversation_config: {
+          agent: {
+            prompt: { tools },
+          },
+        },
+      }),
+    });
+    let ok = res.ok;
+    if (!ok) {
+      const errText = await res.text();
+      console.warn("ElevenLabs agent PATCH (tools) failed:", res.status, errText);
+      // Fall back to legacy shape if the API rejected the nested shape.
+      try {
+        const res2 = await fetch(`${API}/convai/agents/${encodeURIComponent(agentId)}`, {
+          method: "PATCH",
+          headers: { "xi-api-key": key(), "Content-Type": "application/json" },
+          body: JSON.stringify({
+            conversation_config: { agent: { tools } },
+          }),
+        });
+        ok = res2.ok;
+        if (!ok) {
+          console.warn(
+            "ElevenLabs agent PATCH (tools fallback) failed:",
+            res2.status,
+            await res2.text(),
+          );
+        }
+      } catch (e2) {
+        console.warn("ElevenLabs agent PATCH (tools fallback) threw:", (e2 as Error).message);
+      }
+    }
+    toolsProvisionedCache = { agentId, ok, at: Date.now() };
+    return ok;
+  } catch (e) {
+    console.warn("ElevenLabs agent PATCH (tools) threw:", (e as Error).message);
     return false;
   }
 }
