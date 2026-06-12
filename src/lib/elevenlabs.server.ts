@@ -38,12 +38,14 @@ export async function ensureAgentOverridesEnabled(agentId: string): Promise<bool
       method: "PATCH",
       headers: { "xi-api-key": key(), "Content-Type": "application/json" },
       body: JSON.stringify({
-        conversation_config: {
-          agent: {
-            overrides: {
-              prompt: { prompt: true },
-              first_message: true,
-              language: true,
+        platform_settings: {
+          conversation_initiation_client_data: {
+            conversation_config_override: {
+              agent: {
+                prompt: { prompt: true },
+                first_message: true,
+                language: true,
+              },
             },
           },
         },
