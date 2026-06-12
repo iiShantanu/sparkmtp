@@ -37,6 +37,7 @@ function VoiceModeInner({
   const [transcript, setTranscript] = useState<Array<{ role: string; text: string }>>([]);
   const transcriptRef = useRef<Array<{ role: string; text: string }>>([]);
   const startedRef = useRef(false);
+  const userEndingRef = useRef(false);
   const lastHomeworkIdRef = useRef<string | null>(activeHomeworkId);
 
   const appendLine = useCallback((role: string, text: string) => {
@@ -58,6 +59,12 @@ function VoiceModeInner({
           ? err
           : (err as { message?: string })?.message || "Voice connection error";
       setWarning(message);
+    },
+    onDisconnect: (details?: { reason?: string; message?: string }) => {
+      if (userEndingRef.current) return;
+      if (details?.reason === "error") {
+        setWarning(details.message || "Spark voice disconnected. Please try again.");
+      }
     },
   });
 
@@ -81,6 +88,7 @@ function VoiceModeInner({
           setWarning("Voice agent is not configured.");
           return;
         }
+        userEndingRef.current = false;
         const overrides: { agent: Record<string, unknown> } | undefined =
           res.overridesEnabled && res.systemPrompt && res.firstMessage
             ? {
@@ -91,11 +99,13 @@ function VoiceModeInner({
                 },
               }
             : undefined;
-        conv.startSession({
-          conversationToken: res.token,
-          connectionType: "webrtc",
-          ...(overrides ? { overrides } : {}),
-        } as Parameters<typeof conv.startSession>[0]);
+        await Promise.resolve(
+          conv.startSession({
+            conversationToken: res.token,
+            connectionType: "webrtc",
+            ...(overrides ? { overrides } : {}),
+          } as Parameters<typeof conv.startSession>[0]),
+        );
       } catch (e) {
         setWarning((e as Error).message || "Could not start voice");
       } finally {
@@ -124,6 +134,7 @@ function VoiceModeInner({
     lastHomeworkIdRef.current = newId;
     (async () => {
       try {
+        userEndingRef.current = true;
         conv.endSession();
       } catch {
         /* ignore */
@@ -143,6 +154,7 @@ function VoiceModeInner({
   useEffect(() => {
     return () => {
       try {
+        userEndingRef.current = true;
         conv.endSession();
       } catch {
         /* ignore */
@@ -202,7 +214,10 @@ function VoiceModeInner({
                 )}
               </button>
               <button
-                onClick={() => conv.endSession()}
+                onClick={() => {
+                  userEndingRef.current = true;
+                  conv.endSession();
+                }}
                 className="inline-flex items-center gap-2 rounded-md bg-destructive px-5 py-2.5 text-sm font-medium text-destructive-foreground hover:bg-destructive/90"
               >
                 <X className="h-4 w-4" /> End conversation
