@@ -10,9 +10,12 @@ function key(): string {
 }
 
 export async function getConversationToken(agentId: string): Promise<string> {
-  const res = await fetch(`${API}/convai/conversation/token?agent_id=${encodeURIComponent(agentId)}`, {
-    headers: { "xi-api-key": key() },
-  });
+  const res = await fetch(
+    `${API}/convai/conversation/token?agent_id=${encodeURIComponent(agentId)}`,
+    {
+      headers: { "xi-api-key": key() },
+    },
+  );
   if (!res.ok) {
     throw new Error(`ElevenLabs token failed: ${res.status} ${await res.text()}`);
   }
@@ -52,7 +55,9 @@ export async function ensureAgentOverridesEnabled(agentId: string): Promise<bool
       }),
     });
     const ok = res.ok;
-    if (!ok) console.warn("ElevenLabs agent PATCH (overrides) failed:", res.status, await res.text());
+    if (!ok) {
+      console.warn("ElevenLabs agent PATCH (overrides) failed:", res.status, await res.text());
+    }
     overridesEnabledCache = { agentId, ok, at: Date.now() };
     return ok;
   } catch (e) {
@@ -62,21 +67,19 @@ export async function ensureAgentOverridesEnabled(agentId: string): Promise<bool
 }
 
 export async function tts(text: string, voiceId: string): Promise<string> {
-  const res = await fetch(
-    `${API}/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
-    {
-      method: "POST",
-      headers: { "xi-api-key": key(), "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text,
-        model_id: "eleven_turbo_v2_5",
-      }),
-    },
-  );
+  const res = await fetch(`${API}/text-to-speech/${voiceId}?output_format=mp3_44100_128`, {
+    method: "POST",
+    headers: { "xi-api-key": key(), "Content-Type": "application/json" },
+    body: JSON.stringify({
+      text,
+      model_id: "eleven_turbo_v2_5",
+    }),
+  });
   if (!res.ok) throw new Error(`TTS failed: ${res.status} ${await res.text()}`);
   const buf = await res.arrayBuffer();
   return Buffer.from(buf).toString("base64");
 }
+
 
 export async function sttBase64(audioBase64: string, mime = "audio/webm"): Promise<string> {
   const bytes = Buffer.from(audioBase64, "base64");
