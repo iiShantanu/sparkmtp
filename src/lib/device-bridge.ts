@@ -46,6 +46,12 @@ export type WifiStatus = { connected: boolean; ssid: string | null; ip: string |
 
 export const deviceBridge = {
   ping: () => call<{ ok: true; version: string }>("/health"),
+  network: {
+    status: () =>
+      call<{ hostname: string | null; ips: string[]; gateway: string | null; ssid: string | null }>(
+        "/network/status",
+      ),
+  },
   wifi: {
     status: () => call<WifiStatus>("/wifi/status"),
     scan: () => call<{ networks: WifiNetwork[] }>("/wifi/scan"),
