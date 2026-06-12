@@ -1,41 +1,30 @@
 import { useEffect, useState } from "react";
 import { X, Trash2, Plus } from "lucide-react";
+import { sparkBus, notesStore } from "@/lib/spark-controls";
 
 type Note = { id: string; text: string; created_at: string };
-const KEY = "spark_notes_v1";
-
-function load(): Note[] {
-  if (typeof window === "undefined") return [];
-  try {
-    return JSON.parse(localStorage.getItem(KEY) || "[]");
-  } catch {
-    return [];
-  }
-}
-function save(n: Note[]) {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(n));
-  } catch {}
-}
 
 export function NotesPanel({ onClose }: { onClose: () => void }) {
   const [notes, setNotes] = useState<Note[]>([]);
   const [draft, setDraft] = useState("");
 
-  useEffect(() => setNotes(load()), []);
+  useEffect(() => {
+    setNotes(notesStore.list());
+    return sparkBus.subscribe((ev) => {
+      if (ev.kind === "store:changed" && ev.key === "notes") {
+        setNotes(notesStore.list());
+      }
+    });
+  }, []);
 
   function add() {
     const text = draft.trim();
     if (!text) return;
-    const next = [{ id: crypto.randomUUID(), text, created_at: new Date().toISOString() }, ...notes];
-    setNotes(next);
-    save(next);
+    notesStore.add(text);
     setDraft("");
   }
   function remove(id: string) {
-    const next = notes.filter((n) => n.id !== id);
-    setNotes(next);
-    save(next);
+    notesStore.set(notes.filter((n) => n.id !== id));
   }
 
   return (
