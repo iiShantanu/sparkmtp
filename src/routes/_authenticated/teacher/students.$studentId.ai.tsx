@@ -41,7 +41,7 @@ function StudentAiConfigPage() {
   const [prompt, setPrompt] = useState(source?.custom_prompt || DEFAULT_PROMPT);
   const [mode, setMode] = useState<Mode>((source?.mode as Mode) || "guided");
   const [complexity, setComplexity] = useState(source?.complexity || "grade_level");
-  const [language, setLanguage] = useState(source?.language || "English");
+  const [language, setLanguage] = useState(source?.language || "Hinglish");
   const [tone, setTone] = useState(source?.tone || "encouraging");
   const [style, setStyle] = useState(source?.teaching_style || "socratic");
   const [saving, setSaving] = useState(false);
@@ -53,7 +53,7 @@ function StudentAiConfigPage() {
     setPrompt(src?.custom_prompt || DEFAULT_PROMPT);
     setMode((src?.mode as Mode) || "guided");
     setComplexity(src?.complexity || "grade_level");
-    setLanguage(src?.language || "English");
+    setLanguage(src?.language || "Hinglish");
     setTone(src?.tone || "encouraging");
     setStyle(src?.teaching_style || "socratic");
   }, [data]);
